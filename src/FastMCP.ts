@@ -609,15 +609,17 @@ export class FastMCPSession<T extends FastMCPSessionAuth = FastMCPSessionAuth> e
       }
     }
 
-    this.#pingInterval = setInterval(async () => {
-      try {
-        await this.#server.ping();
-      } catch (error) {
-        this.emit("error", {
-          error: error as Error,
-        });
-      }
-    }, 1000);
+    if (this.#clientCapabilities) {
+      this.#pingInterval = setInterval(async () => {
+        try {
+          await this.#server.ping();
+        } catch (error) {
+          this.emit("error", {
+            error: error as Error,
+          });
+        }
+      }, 1000);
+    }
   }
 
   public get roots(): Root[] {
