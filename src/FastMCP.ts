@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
+  AudioContent,
   CallToolRequestSchema,
   ClientCapabilities,
   CompleteRequestSchema,
@@ -83,6 +84,36 @@ export const imageContent = async (
     type: "image",
     data: base64Data,
     mimeType: mimeType?.mime ?? "image/png",
+  } as const;
+};
+
+export const audioContent = async (input: { url: string } | { path: string } | { buffer: Buffer }): Promise<AudioContent> => {
+  let rawData: Buffer;
+
+  if ("url" in input) {
+    const response = await fetch(input.url);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch audio from URL: ${response.statusText}`);
+    }
+
+    rawData = Buffer.from(await response.arrayBuffer());
+  } else if ("path" in input) {
+    rawData = await readFile(input.path);
+  } else if ("buffer" in input) {
+    rawData = input.buffer;
+  } else {
+    throw new Error("Invalid input: Provide a valid 'url', 'path', or 'buffer'");
+  }
+
+  const mimeType = await fileTypeFromBuffer(rawData);
+
+  const base64Data = rawData.toString("base64");
+
+  return {
+    type: "audio",
+    data: base64Data,
+    mimeType: mimeType?.mime ?? "audio/mpeg",
   } as const;
 };
 
@@ -228,7 +259,7 @@ type Tool<T extends FastMCPSessionAuth, Params extends ToolParameters = ToolPara
   execute: (
     args: StandardSchemaV1.InferOutput<Params>,
     context: Context<T>,
-  ) => Promise<string | ContentResult | TextContent | ImageContent>;
+  ) => Promise<string | ContentResult | TextContent | ImageContent | AudioContent>;
 };
 
 type ResourceResult =
@@ -366,7 +397,7 @@ type SamplingResponse = {
   model: string;
   stopReason?: "endTurn" | "stopSequence" | "maxTokens" | string;
   role: "user" | "assistant";
-  content: TextContent | ImageContent;
+  content: TextContent | ImageContent | AudioContent;
 };
 
 type FastMCPSessionAuth = Record<string, unknown> | undefined;

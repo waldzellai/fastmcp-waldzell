@@ -12,6 +12,7 @@ A TypeScript framework for building [MCP](https://glama.ai/mcp) servers capable 
 - [Authentication](#authentication)
 - [Sessions](#sessions)
 - [Image content](#returning-an-image)
+- [Audio content](#returning-an-audio)
 - [Logging](#logging)
 - [Error handling](#errors)
 - [SSE](#sse)
@@ -301,6 +302,75 @@ server.addTool({
           type: "image",
           data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
           mimeType: "image/png",
+        },
+      ],
+    };
+  },
+});
+```
+
+#### Returning an audio
+
+Use the `audioContent` to create a content object for an audio:
+
+```js
+import { audioContent } from "fastmcp";
+
+server.addTool({
+  name: "download",
+  description: "Download a file",
+  parameters: z.object({
+    url: z.string(),
+  }),
+  execute: async (args) => {
+    return audioContent({
+      url: "https://example.com/audio.mp3",
+    });
+
+    // or...
+    // return audioContent({
+    //   path: "/path/to/audio.mp3",
+    // });
+
+    // or...
+    // return audioContent({
+    //   buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"),
+    // });
+
+    // or...
+    // return {
+    //   content: [
+    //     await audioContent(...)
+    //   ],
+    // };
+  },
+});
+```
+
+The `audioContent` function takes the following options:
+
+- `url`: The URL of the audio.
+- `path`: The path to the audio file.
+- `buffer`: The audio data as a buffer.
+
+Only one of `url`, `path`, or `buffer` must be specified.
+
+The above example is equivalent to:
+
+```js
+server.addTool({
+  name: "download",
+  description: "Download a file",
+  parameters: z.object({
+    url: z.string(),
+  }),
+  execute: async (args) => {
+    return {
+      content: [
+        {
+          type: "audio",
+          data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+          mimeType: "audio/mpeg",
         },
       ],
     };
