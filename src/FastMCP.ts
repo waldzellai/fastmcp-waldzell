@@ -375,6 +375,7 @@ type ServerOptions<T extends FastMCPSessionAuth> = {
   name: string;
   version: `${number}.${number}.${number}`;
   authenticate?: Authenticate<T>;
+  instructions?: string;
 };
 
 type LoggingLevel =
@@ -417,6 +418,7 @@ export class FastMCPSession<T extends FastMCPSessionAuth = FastMCPSessionAuth> e
     auth,
     name,
     version,
+    instructions,
     tools,
     resources,
     resourcesTemplates,
@@ -425,6 +427,7 @@ export class FastMCPSession<T extends FastMCPSessionAuth = FastMCPSessionAuth> e
     auth?: T;
     name: string;
     version: string;
+    instructions?: string;
     tools: Tool<T>[];
     resources: Resource[];
     resourcesTemplates: InputResourceTemplate[];
@@ -454,7 +457,7 @@ export class FastMCPSession<T extends FastMCPSessionAuth = FastMCPSessionAuth> e
 
     this.#server = new Server(
       { name: name, version: version },
-      { capabilities: this.#capabilities },
+      { capabilities: this.#capabilities, instructions: instructions },
     );
 
     this.setupErrorHandling();
@@ -1136,6 +1139,7 @@ export class FastMCP<T extends Record<string, unknown> | undefined = undefined> 
       const session = new FastMCPSession<T>({
         name: this.#options.name,
         version: this.#options.version,
+        instructions: this.#options.instructions
         tools: this.#tools,
         resources: this.#resources,
         resourcesTemplates: this.#resourcesTemplates,
