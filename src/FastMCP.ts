@@ -597,7 +597,7 @@ export class FastMCPSession<T extends FastMCPSessionAuth = FastMCPSessionAuth> e
     }
 
     if (!this.#clientCapabilities) {
-      console.warn('[warning] FastMCP could not infer client capabilities')
+      console.warn('[FastMCP warning] could not infer client capabilities')
     }
 
     if (this.#clientCapabilities?.roots?.listChanged) {
@@ -605,7 +605,7 @@ export class FastMCPSession<T extends FastMCPSessionAuth = FastMCPSessionAuth> e
         const roots = await this.#server.listRoots();
         this.#roots = roots.roots;
       } catch(e) {
-        console.error(`[error] FastMCP received error listing roots.\n\n${e instanceof Error ? e.stack : JSON.stringify(e)}`)
+        console.error(`[FastMCP error] received error listing roots.\n\n${e instanceof Error ? e.stack : JSON.stringify(e)}`)
       }
     }
 
@@ -613,10 +613,11 @@ export class FastMCPSession<T extends FastMCPSessionAuth = FastMCPSessionAuth> e
       this.#pingInterval = setInterval(async () => {
         try {
           await this.#server.ping();
-        } catch (error) {
-          this.emit("error", {
-            error: error as Error,
-          });
+        } catch {
+          // The reason we are not emitting an error here is because some clients
+          // seem to not respond to the ping request, and we don't want to crash the server,
+          // e.g., https://github.com/punkpeye/fastmcp/issues/38. 
+          console.warn("[FastMCP warning] server is not responding to ping")
         }
       }, 1000);
     }
@@ -634,13 +635,13 @@ export class FastMCPSession<T extends FastMCPSessionAuth = FastMCPSessionAuth> e
     try {
       await this.#server.close();
     } catch (error) {
-      console.error("[MCP Error]", "could not close server", error);
+      console.error("[FastMCP error]", "could not close server", error);
     }
   }
 
   private setupErrorHandling() {
     this.#server.onerror = (error) => {
-      console.error("[MCP Error]", error);
+      console.error("[FastMCP error]", error);
     };
   }
 
@@ -1186,7 +1187,7 @@ export class FastMCP<T extends Record<string, unknown> | undefined = undefined> 
       });
 
       console.info(
-        `server is running on SSE at http://localhost:${options.sse.port}${options.sse.endpoint}`,
+        `[FastMCP info] server is running on SSE at http://localhost:${options.sse.port}${options.sse.endpoint}`,
       );
     } else {
       throw new Error("Invalid transport type");
