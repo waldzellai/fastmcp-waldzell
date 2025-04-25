@@ -741,6 +741,18 @@ server.addTool({
 });
 ```
 
+### Providing Instructions
+
+You can provide instructions to the server using the `instructions` option:
+
+```ts
+const server = new FastMCP({
+  name: "My Server",
+  version: "1.0.0",
+  instructions: "Instructions describing how to use the server and its features.\n\nThis can be used by clients to improve the LLM's understanding of available tools, resources, etc. It can be thought of like a \"hint\" to the model. For example, this information MAY be added to the system prompt.",
+});
+```
+
 ### Sessions
 
 The `session` object is an instance of `FastMCPSession` and it describes active client sessions.
