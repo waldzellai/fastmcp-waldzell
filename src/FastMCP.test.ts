@@ -1,10 +1,5 @@
-import { FastMCP, FastMCPSession, UserError, imageContent } from "./FastMCP.js";
-import { z } from "zod";
-import { test, expect, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { getRandomPort } from "get-port-please";
-import { setTimeout as delay } from "timers/promises";
 import {
   CreateMessageRequestSchema,
   ErrorCode,
@@ -15,13 +10,18 @@ import {
   Root,
 } from "@modelcontextprotocol/sdk/types.js";
 import { createEventSource, EventSourceClient } from "eventsource-client";
+import { getRandomPort } from "get-port-please";
+import { setTimeout as delay } from "timers/promises";
+import { expect, test, vi } from "vitest";
+import { z } from "zod";
+
+import { FastMCP, FastMCPSession, imageContent, UserError } from "./FastMCP.js";
 
 const runWithTestServer = async ({
-  run,
   client: createClient,
+  run,
   server: createServer,
 }: {
-  server?: () => Promise<FastMCP>;
   client?: () => Promise<Client>;
   run: ({
     client,
@@ -31,6 +31,7 @@ const runWithTestServer = async ({
     server: FastMCP;
     session: FastMCPSession;
   }) => Promise<void>;
+  server?: () => Promise<FastMCP>;
 }) => {
   const port = await getRandomPort();
 
@@ -42,11 +43,11 @@ const runWithTestServer = async ({
       });
 
   await server.start({
-    transportType: "sse",
     sse: {
       endpoint: "/sse",
       port,
     },
+    transportType: "sse",
   });
 
   try {
@@ -84,6 +85,26 @@ const runWithTestServer = async ({
 
 test("adds tools", async () => {
   await runWithTestServer({
+    run: async ({ client }) => {
+      expect(await client.listTools()).toEqual({
+        tools: [
+          {
+            description: "Add two numbers",
+            inputSchema: {
+              $schema: "http://json-schema.org/draft-07/schema#",
+              additionalProperties: false,
+              properties: {
+                a: { type: "number" },
+                b: { type: "number" },
+              },
+              required: ["a", "b"],
+              type: "object",
+            },
+            name: "add",
+          },
+        ],
+      });
+    },
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -91,44 +112,37 @@ test("adds tools", async () => {
       });
 
       server.addTool({
-        name: "add",
         description: "Add two numbers",
+        execute: async (args) => {
+          return String(args.a + args.b);
+        },
+        name: "add",
         parameters: z.object({
           a: z.number(),
           b: z.number(),
         }),
-        execute: async (args) => {
-          return String(args.a + args.b);
-        },
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      expect(await client.listTools()).toEqual({
-        tools: [
-          {
-            name: "add",
-            description: "Add two numbers",
-            inputSchema: {
-              additionalProperties: false,
-              $schema: "http://json-schema.org/draft-07/schema#",
-              type: "object",
-              properties: {
-                a: { type: "number" },
-                b: { type: "number" },
-              },
-              required: ["a", "b"],
-            },
-          },
-        ],
-      });
     },
   });
 });
 
 test("calls a tool", async () => {
   await runWithTestServer({
+    run: async ({ client }) => {
+      expect(
+        await client.callTool({
+          arguments: {
+            a: 1,
+            b: 2,
+          },
+          name: "add",
+        }),
+      ).toEqual({
+        content: [{ text: "3", type: "text" }],
+      });
+    },
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -136,37 +150,40 @@ test("calls a tool", async () => {
       });
 
       server.addTool({
-        name: "add",
         description: "Add two numbers",
+        execute: async (args) => {
+          return String(args.a + args.b);
+        },
+        name: "add",
         parameters: z.object({
           a: z.number(),
           b: z.number(),
         }),
-        execute: async (args) => {
-          return String(args.a + args.b);
-        },
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      expect(
-        await client.callTool({
-          name: "add",
-          arguments: {
-            a: 1,
-            b: 2,
-          },
-        }),
-      ).toEqual({
-        content: [{ type: "text", text: "3" }],
-      });
     },
   });
 });
 
 test("returns a list", async () => {
   await runWithTestServer({
+    run: async ({ client }) => {
+      expect(
+        await client.callTool({
+          arguments: {
+            a: 1,
+            b: 2,
+          },
+          name: "add",
+        }),
+      ).toEqual({
+        content: [
+          { text: "a", type: "text" },
+          { text: "b", type: "text" },
+        ],
+      });
+    },
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -174,45 +191,48 @@ test("returns a list", async () => {
       });
 
       server.addTool({
-        name: "add",
         description: "Add two numbers",
+        execute: async () => {
+          return {
+            content: [
+              { text: "a", type: "text" },
+              { text: "b", type: "text" },
+            ],
+          };
+        },
+        name: "add",
         parameters: z.object({
           a: z.number(),
           b: z.number(),
         }),
-        execute: async () => {
-          return {
-            content: [
-              { type: "text", text: "a" },
-              { type: "text", text: "b" },
-            ],
-          };
-        },
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      expect(
-        await client.callTool({
-          name: "add",
-          arguments: {
-            a: 1,
-            b: 2,
-          },
-        }),
-      ).toEqual({
-        content: [
-          { type: "text", text: "a" },
-          { type: "text", text: "b" },
-        ],
-      });
     },
   });
 });
 
 test("returns an image", async () => {
   await runWithTestServer({
+    run: async ({ client }) => {
+      expect(
+        await client.callTool({
+          arguments: {
+            a: 1,
+            b: 2,
+          },
+          name: "add",
+        }),
+      ).toEqual({
+        content: [
+          {
+            data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+            mimeType: "image/png",
+            type: "image",
+          },
+        ],
+      });
+    },
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -220,12 +240,7 @@ test("returns an image", async () => {
       });
 
       server.addTool({
-        name: "add",
         description: "Add two numbers",
-        parameters: z.object({
-          a: z.number(),
-          b: z.number(),
-        }),
         execute: async () => {
           return imageContent({
             buffer: Buffer.from(
@@ -234,34 +249,34 @@ test("returns an image", async () => {
             ),
           });
         },
+        name: "add",
+        parameters: z.object({
+          a: z.number(),
+          b: z.number(),
+        }),
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      expect(
-        await client.callTool({
-          name: "add",
-          arguments: {
-            a: 1,
-            b: 2,
-          },
-        }),
-      ).toEqual({
-        content: [
-          {
-            type: "image",
-            data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-            mimeType: "image/png",
-          },
-        ],
-      });
     },
   });
 });
 
 test("handles UserError errors", async () => {
   await runWithTestServer({
+    run: async ({ client }) => {
+      expect(
+        await client.callTool({
+          arguments: {
+            a: 1,
+            b: 2,
+          },
+          name: "add",
+        }),
+      ).toEqual({
+        content: [{ text: "Something went wrong", type: "text" }],
+        isError: true,
+      });
+    },
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -269,54 +284,32 @@ test("handles UserError errors", async () => {
       });
 
       server.addTool({
-        name: "add",
         description: "Add two numbers",
+        execute: async () => {
+          throw new UserError("Something went wrong");
+        },
+        name: "add",
         parameters: z.object({
           a: z.number(),
           b: z.number(),
         }),
-        execute: async () => {
-          throw new UserError("Something went wrong");
-        },
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      expect(
-        await client.callTool({
-          name: "add",
-          arguments: {
-            a: 1,
-            b: 2,
-          },
-        }),
-      ).toEqual({
-        content: [{ type: "text", text: "Something went wrong" }],
-        isError: true,
-      });
     },
   });
 });
 
 test("calling an unknown tool throws McpError with MethodNotFound code", async () => {
   await runWithTestServer({
-    server: async () => {
-      const server = new FastMCP({
-        name: "Test",
-        version: "1.0.0",
-      });
-
-      return server;
-    },
     run: async ({ client }) => {
       try {
         await client.callTool({
-          name: "add",
           arguments: {
             a: 1,
             b: 2,
           },
+          name: "add",
         });
       } catch (error) {
         expect(error).toBeInstanceOf(McpError);
@@ -325,48 +318,29 @@ test("calling an unknown tool throws McpError with MethodNotFound code", async (
         expect(error.code).toBe(ErrorCode.MethodNotFound);
       }
     },
-  });
-});
-
-test("tracks tool progress", async () => {
-  await runWithTestServer({
     server: async () => {
       const server = new FastMCP({
         name: "Test",
         version: "1.0.0",
       });
 
-      server.addTool({
-        name: "add",
-        description: "Add two numbers",
-        parameters: z.object({
-          a: z.number(),
-          b: z.number(),
-        }),
-        execute: async (args, { reportProgress }) => {
-          reportProgress({
-            progress: 0,
-            total: 10,
-          });
-
-          await delay(100);
-
-          return String(args.a + args.b);
-        },
-      });
-
       return server;
     },
+  });
+});
+
+test("tracks tool progress", async () => {
+  await runWithTestServer({
     run: async ({ client }) => {
       const onProgress = vi.fn();
 
       await client.callTool(
         {
-          name: "add",
           arguments: {
             a: 1,
             b: 2,
           },
+          name: "add",
         },
         undefined,
         {
@@ -379,6 +353,33 @@ test("tracks tool progress", async () => {
         progress: 0,
         total: 10,
       });
+    },
+    server: async () => {
+      const server = new FastMCP({
+        name: "Test",
+        version: "1.0.0",
+      });
+
+      server.addTool({
+        description: "Add two numbers",
+        execute: async (args, { reportProgress }) => {
+          reportProgress({
+            progress: 0,
+            total: 10,
+          });
+
+          await delay(100);
+
+          return String(args.a + args.b);
+        },
+        name: "add",
+        parameters: z.object({
+          a: z.number(),
+          b: z.number(),
+        }),
+      });
+
+      return server;
     },
   });
 });
@@ -399,33 +400,6 @@ test("sets logging levels", async () => {
 
 test("sends logging messages to the client", async () => {
   await runWithTestServer({
-    server: async () => {
-      const server = new FastMCP({
-        name: "Test",
-        version: "1.0.0",
-      });
-
-      server.addTool({
-        name: "add",
-        description: "Add two numbers",
-        parameters: z.object({
-          a: z.number(),
-          b: z.number(),
-        }),
-        execute: async (args, { log }) => {
-          log.debug("debug message", {
-            foo: "bar",
-          });
-          log.error("error message");
-          log.info("info message");
-          log.warn("warn message");
-
-          return String(args.a + args.b);
-        },
-      });
-
-      return server;
-    },
     run: async ({ client }) => {
       const onLog = vi.fn();
 
@@ -442,20 +416,20 @@ test("sends logging messages to the client", async () => {
       );
 
       await client.callTool({
-        name: "add",
         arguments: {
           a: 1,
           b: 2,
         },
+        name: "add",
       });
 
       expect(onLog).toHaveBeenCalledTimes(4);
       expect(onLog).toHaveBeenNthCalledWith(1, {
-        level: "debug",
-        message: "debug message",
         context: {
           foo: "bar",
         },
+        level: "debug",
+        message: "debug message",
       });
       expect(onLog).toHaveBeenNthCalledWith(2, {
         level: "error",
@@ -470,11 +444,49 @@ test("sends logging messages to the client", async () => {
         message: "warn message",
       });
     },
+    server: async () => {
+      const server = new FastMCP({
+        name: "Test",
+        version: "1.0.0",
+      });
+
+      server.addTool({
+        description: "Add two numbers",
+        execute: async (args, { log }) => {
+          log.debug("debug message", {
+            foo: "bar",
+          });
+          log.error("error message");
+          log.info("info message");
+          log.warn("warn message");
+
+          return String(args.a + args.b);
+        },
+        name: "add",
+        parameters: z.object({
+          a: z.number(),
+          b: z.number(),
+        }),
+      });
+
+      return server;
+    },
   });
 });
 
 test("adds resources", async () => {
   await runWithTestServer({
+    run: async ({ client }) => {
+      expect(await client.listResources()).toEqual({
+        resources: [
+          {
+            mimeType: "text/plain",
+            name: "Application Logs",
+            uri: "file:///logs/app.log",
+          },
+        ],
+      });
+    },
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -482,53 +494,23 @@ test("adds resources", async () => {
       });
 
       server.addResource({
-        uri: "file:///logs/app.log",
-        name: "Application Logs",
-        mimeType: "text/plain",
         async load() {
           return {
             text: "Example log content",
           };
         },
+        mimeType: "text/plain",
+        name: "Application Logs",
+        uri: "file:///logs/app.log",
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      expect(await client.listResources()).toEqual({
-        resources: [
-          {
-            uri: "file:///logs/app.log",
-            name: "Application Logs",
-            mimeType: "text/plain",
-          },
-        ],
-      });
     },
   });
 });
 
 test("clients reads a resource", async () => {
   await runWithTestServer({
-    server: async () => {
-      const server = new FastMCP({
-        name: "Test",
-        version: "1.0.0",
-      });
-
-      server.addResource({
-        uri: "file:///logs/app.log",
-        name: "Application Logs",
-        mimeType: "text/plain",
-        async load() {
-          return {
-            text: "Example log content",
-          };
-        },
-      });
-
-      return server;
-    },
     run: async ({ client }) => {
       expect(
         await client.readResource({
@@ -537,19 +519,14 @@ test("clients reads a resource", async () => {
       ).toEqual({
         contents: [
           {
-            uri: "file:///logs/app.log",
+            mimeType: "text/plain",
             name: "Application Logs",
             text: "Example log content",
-            mimeType: "text/plain",
+            uri: "file:///logs/app.log",
           },
         ],
       });
     },
-  });
-});
-
-test("clients reads a resource that returns multiple resources", async () => {
-  await runWithTestServer({
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -557,9 +534,52 @@ test("clients reads a resource that returns multiple resources", async () => {
       });
 
       server.addResource({
-        uri: "file:///logs/app.log",
-        name: "Application Logs",
+        async load() {
+          return {
+            text: "Example log content",
+          };
+        },
         mimeType: "text/plain",
+        name: "Application Logs",
+        uri: "file:///logs/app.log",
+      });
+
+      return server;
+    },
+  });
+});
+
+test("clients reads a resource that returns multiple resources", async () => {
+  await runWithTestServer({
+    run: async ({ client }) => {
+      expect(
+        await client.readResource({
+          uri: "file:///logs/app.log",
+        }),
+      ).toEqual({
+        contents: [
+          {
+            mimeType: "text/plain",
+            name: "Application Logs",
+            text: "a",
+            uri: "file:///logs/app.log",
+          },
+          {
+            mimeType: "text/plain",
+            name: "Application Logs",
+            text: "b",
+            uri: "file:///logs/app.log",
+          },
+        ],
+      });
+    },
+    server: async () => {
+      const server = new FastMCP({
+        name: "Test",
+        version: "1.0.0",
+      });
+
+      server.addResource({
         async load() {
           return [
             {
@@ -570,77 +590,35 @@ test("clients reads a resource that returns multiple resources", async () => {
             },
           ];
         },
+        mimeType: "text/plain",
+        name: "Application Logs",
+        uri: "file:///logs/app.log",
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      expect(
-        await client.readResource({
-          uri: "file:///logs/app.log",
-        }),
-      ).toEqual({
-        contents: [
-          {
-            uri: "file:///logs/app.log",
-            name: "Application Logs",
-            text: "a",
-            mimeType: "text/plain",
-          },
-          {
-            uri: "file:///logs/app.log",
-            name: "Application Logs",
-            text: "b",
-            mimeType: "text/plain",
-          },
-        ],
-      });
     },
   });
 });
 
 test("adds prompts", async () => {
   await runWithTestServer({
-    server: async () => {
-      const server = new FastMCP({
-        name: "Test",
-        version: "1.0.0",
-      });
-
-      server.addPrompt({
-        name: "git-commit",
-        description: "Generate a Git commit message",
-        arguments: [
-          {
-            name: "changes",
-            description: "Git diff or description of changes",
-            required: true,
-          },
-        ],
-        load: async (args) => {
-          return `Generate a concise but descriptive commit message for these changes:\n\n${args.changes}`;
-        },
-      });
-
-      return server;
-    },
     run: async ({ client }) => {
       expect(
         await client.getPrompt({
-          name: "git-commit",
           arguments: {
             changes: "foo",
           },
+          name: "git-commit",
         }),
       ).toEqual({
         description: "Generate a Git commit message",
         messages: [
           {
-            role: "user",
             content: {
-              type: "text",
               text: "Generate a concise but descriptive commit message for these changes:\n\nfoo",
+              type: "text",
             },
+            role: "user",
           },
         ],
       });
@@ -648,18 +626,41 @@ test("adds prompts", async () => {
       expect(await client.listPrompts()).toEqual({
         prompts: [
           {
-            name: "git-commit",
-            description: "Generate a Git commit message",
             arguments: [
               {
-                name: "changes",
                 description: "Git diff or description of changes",
+                name: "changes",
                 required: true,
               },
             ],
+            description: "Generate a Git commit message",
+            name: "git-commit",
           },
         ],
       });
+    },
+    server: async () => {
+      const server = new FastMCP({
+        name: "Test",
+        version: "1.0.0",
+      });
+
+      server.addPrompt({
+        arguments: [
+          {
+            description: "Git diff or description of changes",
+            name: "changes",
+            required: true,
+          },
+        ],
+        description: "Generate a Git commit message",
+        load: async (args) => {
+          return `Generate a concise but descriptive commit message for these changes:\n\n${args.changes}`;
+        },
+        name: "git-commit",
+      });
+
+      return server;
     },
   });
 });
@@ -679,11 +680,11 @@ test("uses events to notify server of client connect/disconnect", async () => {
   server.on("disconnect", onDisconnect);
 
   await server.start({
-    transportType: "sse",
     sse: {
       endpoint: "/sse",
       port,
     },
+    transportType: "sse",
   });
 
   const client = new Client(
@@ -728,11 +729,11 @@ test("handles multiple clients", async () => {
   });
 
   await server.start({
-    transportType: "sse",
     sse: {
       endpoint: "/sse",
       port,
     },
+    transportType: "sse",
   });
 
   const client1 = new Client(
@@ -798,8 +799,8 @@ test("session knows about client capabilities", async () => {
         return {
           roots: [
             {
-              uri: "file:///home/user/projects/frontend",
               name: "Frontend Repository",
+              uri: "file:///home/user/projects/frontend",
             },
           ],
         };
@@ -838,8 +839,8 @@ test("session knows about roots", async () => {
         return {
           roots: [
             {
-              uri: "file:///home/user/projects/frontend",
               name: "Frontend Repository",
+              uri: "file:///home/user/projects/frontend",
             },
           ],
         };
@@ -850,8 +851,8 @@ test("session knows about roots", async () => {
     run: async ({ session }) => {
       expect(session.roots).toEqual([
         {
-          uri: "file:///home/user/projects/frontend",
           name: "Frontend Repository",
+          uri: "file:///home/user/projects/frontend",
         },
       ]);
     },
@@ -859,10 +860,10 @@ test("session knows about roots", async () => {
 });
 
 test("session listens to roots changes", async () => {
-  let clientRoots: Root[] = [
+  const clientRoots: Root[] = [
     {
-      uri: "file:///home/user/projects/frontend",
       name: "Frontend Repository",
+      uri: "file:///home/user/projects/frontend",
     },
   ];
 
@@ -890,17 +891,17 @@ test("session listens to roots changes", async () => {
 
       return client;
     },
-    run: async ({ session, client }) => {
+    run: async ({ client, session }) => {
       expect(session.roots).toEqual([
         {
-          uri: "file:///home/user/projects/frontend",
           name: "Frontend Repository",
+          uri: "file:///home/user/projects/frontend",
         },
       ]);
 
       clientRoots.push({
-        uri: "file:///home/user/projects/backend",
         name: "Backend Repository",
+        uri: "file:///home/user/projects/backend",
       });
 
       await client.sendRootsListChanged();
@@ -913,12 +914,12 @@ test("session listens to roots changes", async () => {
 
       expect(session.roots).toEqual([
         {
-          uri: "file:///home/user/projects/frontend",
           name: "Frontend Repository",
+          uri: "file:///home/user/projects/frontend",
         },
         {
-          uri: "file:///home/user/projects/backend",
           name: "Backend Repository",
+          uri: "file:///home/user/projects/backend",
         },
       ]);
 
@@ -926,12 +927,12 @@ test("session listens to roots changes", async () => {
       expect(onRootsChanged).toHaveBeenCalledWith({
         roots: [
           {
-            uri: "file:///home/user/projects/frontend",
             name: "Frontend Repository",
+            uri: "file:///home/user/projects/frontend",
           },
           {
-            uri: "file:///home/user/projects/backend",
             name: "Backend Repository",
+            uri: "file:///home/user/projects/backend",
           },
         ],
       });
@@ -955,6 +956,24 @@ test("session sends pings to the client", async () => {
 
 test("completes prompt arguments", async () => {
   await runWithTestServer({
+    run: async ({ client }) => {
+      const response = await client.complete({
+        argument: {
+          name: "name",
+          value: "Germ",
+        },
+        ref: {
+          name: "countryPoem",
+          type: "ref/prompt",
+        },
+      });
+
+      expect(response).toEqual({
+        completion: {
+          values: ["Germany"],
+        },
+      });
+    },
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -962,16 +981,8 @@ test("completes prompt arguments", async () => {
       });
 
       server.addPrompt({
-        name: "countryPoem",
-        description: "Writes a poem about a country",
-        load: async ({ name }) => {
-          return `Hello, ${name}!`;
-        },
         arguments: [
           {
-            name: "name",
-            description: "Name of the country",
-            required: true,
             complete: async (value) => {
               if (value === "Germ") {
                 return {
@@ -983,35 +994,44 @@ test("completes prompt arguments", async () => {
                 values: [],
               };
             },
+            description: "Name of the country",
+            name: "name",
+            required: true,
           },
         ],
+        description: "Writes a poem about a country",
+        load: async ({ name }) => {
+          return `Hello, ${name}!`;
+        },
+        name: "countryPoem",
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      const response = await client.complete({
-        ref: {
-          type: "ref/prompt",
-          name: "countryPoem",
-        },
-        argument: {
-          name: "name",
-          value: "Germ",
-        },
-      });
-
-      expect(response).toEqual({
-        completion: {
-          values: ["Germany"],
-        },
-      });
     },
   });
 });
 
 test("adds automatic prompt argument completion when enum is provided", async () => {
   await runWithTestServer({
+    run: async ({ client }) => {
+      const response = await client.complete({
+        argument: {
+          name: "name",
+          value: "Germ",
+        },
+        ref: {
+          name: "countryPoem",
+          type: "ref/prompt",
+        },
+      });
+
+      expect(response).toEqual({
+        completion: {
+          total: 1,
+          values: ["Germany"],
+        },
+      });
+    },
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -1019,47 +1039,46 @@ test("adds automatic prompt argument completion when enum is provided", async ()
       });
 
       server.addPrompt({
-        name: "countryPoem",
+        arguments: [
+          {
+            description: "Name of the country",
+            enum: ["Germany", "France", "Italy"],
+            name: "name",
+            required: true,
+          },
+        ],
         description: "Writes a poem about a country",
         load: async ({ name }) => {
           return `Hello, ${name}!`;
         },
-        arguments: [
-          {
-            name: "name",
-            description: "Name of the country",
-            required: true,
-            enum: ["Germany", "France", "Italy"],
-          },
-        ],
+        name: "countryPoem",
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      const response = await client.complete({
-        ref: {
-          type: "ref/prompt",
-          name: "countryPoem",
-        },
-        argument: {
-          name: "name",
-          value: "Germ",
-        },
-      });
-
-      expect(response).toEqual({
-        completion: {
-          values: ["Germany"],
-          total: 1,
-        },
-      });
     },
   });
 });
 
 test("completes template resource arguments", async () => {
   await runWithTestServer({
+    run: async ({ client }) => {
+      const response = await client.complete({
+        argument: {
+          name: "issueId",
+          value: "123",
+        },
+        ref: {
+          type: "ref/resource",
+          uri: "issue:///{issueId}",
+        },
+      });
+
+      expect(response).toEqual({
+        completion: {
+          values: ["123456"],
+        },
+      });
+    },
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -1067,13 +1086,8 @@ test("completes template resource arguments", async () => {
       });
 
       server.addResourceTemplate({
-        uriTemplate: "issue:///{issueId}",
-        name: "Issue",
-        mimeType: "text/plain",
         arguments: [
           {
-            name: "issueId",
-            description: "ID of the issue",
             complete: async (value) => {
               if (value === "123") {
                 return {
@@ -1085,6 +1099,8 @@ test("completes template resource arguments", async () => {
                 values: [],
               };
             },
+            description: "ID of the issue",
+            name: "issueId",
           },
         ],
         load: async ({ issueId }) => {
@@ -1092,59 +1108,18 @@ test("completes template resource arguments", async () => {
             text: `Issue ${issueId}`,
           };
         },
+        mimeType: "text/plain",
+        name: "Issue",
+        uriTemplate: "issue:///{issueId}",
       });
 
       return server;
-    },
-    run: async ({ client }) => {
-      const response = await client.complete({
-        ref: {
-          type: "ref/resource",
-          uri: "issue:///{issueId}",
-        },
-        argument: {
-          name: "issueId",
-          value: "123",
-        },
-      });
-
-      expect(response).toEqual({
-        completion: {
-          values: ["123456"],
-        },
-      });
     },
   });
 });
 
 test("lists resource templates", async () => {
   await runWithTestServer({
-    server: async () => {
-      const server = new FastMCP({
-        name: "Test",
-        version: "1.0.0",
-      });
-
-      server.addResourceTemplate({
-        uriTemplate: "file:///logs/{name}.log",
-        name: "Application Logs",
-        mimeType: "text/plain",
-        arguments: [
-          {
-            name: "name",
-            description: "Name of the log",
-            required: true,
-          },
-        ],
-        load: async ({ name }) => {
-          return {
-            text: `Example log content for ${name}`,
-          };
-        },
-      });
-
-      return server;
-    },
     run: async ({ client }) => {
       expect(await client.listResourceTemplates()).toEqual({
         resourceTemplates: [
@@ -1155,17 +1130,6 @@ test("lists resource templates", async () => {
         ],
       });
     },
-  });
-});
-
-test("clients reads a resource accessed via a resource template", async () => {
-  const loadSpy = vi.fn((_args) => {
-    return {
-      text: "Example log content",
-    };
-  });
-
-  await runWithTestServer({
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -1173,22 +1137,37 @@ test("clients reads a resource accessed via a resource template", async () => {
       });
 
       server.addResourceTemplate({
-        uriTemplate: "file:///logs/{name}.log",
-        name: "Application Logs",
-        mimeType: "text/plain",
         arguments: [
           {
-            name: "name",
             description: "Name of the log",
+            name: "name",
+            required: true,
           },
         ],
-        async load(args) {
-          return loadSpy(args);
+        load: async ({ name }) => {
+          return {
+            text: `Example log content for ${name}`,
+          };
         },
+        mimeType: "text/plain",
+        name: "Application Logs",
+        uriTemplate: "file:///logs/{name}.log",
       });
 
       return server;
     },
+  });
+});
+
+test("clients reads a resource accessed via a resource template", async () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const loadSpy = vi.fn((_args) => {
+    return {
+      text: "Example log content",
+    };
+  });
+
+  await runWithTestServer({
     run: async ({ client }) => {
       expect(
         await client.readResource({
@@ -1197,10 +1176,10 @@ test("clients reads a resource accessed via a resource template", async () => {
       ).toEqual({
         contents: [
           {
-            uri: "file:///logs/app.log",
+            mimeType: "text/plain",
             name: "Application Logs",
             text: "Example log content",
-            mimeType: "text/plain",
+            uri: "file:///logs/app.log",
           },
         ],
       });
@@ -1209,18 +1188,41 @@ test("clients reads a resource accessed via a resource template", async () => {
         name: "app",
       });
     },
+    server: async () => {
+      const server = new FastMCP({
+        name: "Test",
+        version: "1.0.0",
+      });
+
+      server.addResourceTemplate({
+        arguments: [
+          {
+            description: "Name of the log",
+            name: "name",
+          },
+        ],
+        async load(args) {
+          return loadSpy(args);
+        },
+        mimeType: "text/plain",
+        name: "Application Logs",
+        uriTemplate: "file:///logs/{name}.log",
+      });
+
+      return server;
+    },
   });
 });
 
 test("makes a sampling request", async () => {
   const onMessageRequest = vi.fn(() => {
     return {
+      content: {
+        text: "The files are in the current directory.",
+        type: "text",
+      },
       model: "gpt-3.5-turbo",
       role: "assistant",
-      content: {
-        type: "text",
-        text: "The files are in the current directory.",
-      },
     };
   });
 
@@ -1243,27 +1245,27 @@ test("makes a sampling request", async () => {
       client.setRequestHandler(CreateMessageRequestSchema, onMessageRequest);
 
       const response = await session.requestSampling({
+        includeContext: "thisServer",
+        maxTokens: 100,
         messages: [
           {
-            role: "user",
             content: {
-              type: "text",
               text: "What files are in the current directory?",
+              type: "text",
             },
+            role: "user",
           },
         ],
         systemPrompt: "You are a helpful file system assistant.",
-        includeContext: "thisServer",
-        maxTokens: 100,
       });
 
       expect(response).toEqual({
+        content: {
+          text: "The files are in the current directory.",
+          type: "text",
+        },
         model: "gpt-3.5-turbo",
         role: "assistant",
-        content: {
-          type: "text",
-          text: "The files are in the current directory.",
-        },
       });
 
       expect(onMessageRequest).toHaveBeenCalledTimes(1);
@@ -1273,34 +1275,14 @@ test("makes a sampling request", async () => {
 
 test("throws ErrorCode.InvalidParams if tool parameters do not match zod schema", async () => {
   await runWithTestServer({
-    server: async () => {
-      const server = new FastMCP({
-        name: "Test",
-        version: "1.0.0",
-      });
-
-      server.addTool({
-        name: "add",
-        description: "Add two numbers",
-        parameters: z.object({
-          a: z.number(),
-          b: z.number(),
-        }),
-        execute: async (args) => {
-          return String(args.a + args.b);
-        },
-      });
-
-      return server;
-    },
     run: async ({ client }) => {
       try {
         await client.callTool({
-          name: "add",
           arguments: {
             a: 1,
             b: "invalid",
           },
+          name: "add",
         });
       } catch (error) {
         expect(error).toBeInstanceOf(McpError);
@@ -1314,11 +1296,6 @@ test("throws ErrorCode.InvalidParams if tool parameters do not match zod schema"
         );
       }
     },
-  });
-});
-
-test("server remains usable after InvalidParams error", async () => {
-  await runWithTestServer({
     server: async () => {
       const server = new FastMCP({
         name: "Test",
@@ -1326,27 +1303,32 @@ test("server remains usable after InvalidParams error", async () => {
       });
 
       server.addTool({
-        name: "add",
         description: "Add two numbers",
+        execute: async (args) => {
+          return String(args.a + args.b);
+        },
+        name: "add",
         parameters: z.object({
           a: z.number(),
           b: z.number(),
         }),
-        execute: async (args) => {
-          return String(args.a + args.b);
-        },
       });
 
       return server;
     },
+  });
+});
+
+test("server remains usable after InvalidParams error", async () => {
+  await runWithTestServer({
     run: async ({ client }) => {
       try {
         await client.callTool({
-          name: "add",
           arguments: {
             a: 1,
             b: "invalid",
           },
+          name: "add",
         });
       } catch (error) {
         expect(error).toBeInstanceOf(McpError);
@@ -1362,15 +1344,35 @@ test("server remains usable after InvalidParams error", async () => {
 
       expect(
         await client.callTool({
-          name: "add",
           arguments: {
             a: 1,
             b: 2,
           },
+          name: "add",
         }),
       ).toEqual({
-        content: [{ type: "text", text: "3" }],
+        content: [{ text: "3", type: "text" }],
       });
+    },
+    server: async () => {
+      const server = new FastMCP({
+        name: "Test",
+        version: "1.0.0",
+      });
+
+      server.addTool({
+        description: "Add two numbers",
+        execute: async (args) => {
+          return String(args.a + args.b);
+        },
+        name: "add",
+        parameters: z.object({
+          a: z.number(),
+          b: z.number(),
+        }),
+      });
+
+      return server;
     },
   });
 });
@@ -1384,23 +1386,23 @@ test("allows new clients to connect after a client disconnects", async () => {
   });
 
   server.addTool({
-    name: "add",
     description: "Add two numbers",
+    execute: async (args) => {
+      return String(args.a + args.b);
+    },
+    name: "add",
     parameters: z.object({
       a: z.number(),
       b: z.number(),
     }),
-    execute: async (args) => {
-      return String(args.a + args.b);
-    },
   });
 
   await server.start({
-    transportType: "sse",
     sse: {
       endpoint: "/sse",
       port,
     },
+    transportType: "sse",
   });
 
   const client1 = new Client(
@@ -1421,14 +1423,14 @@ test("allows new clients to connect after a client disconnects", async () => {
 
   expect(
     await client1.callTool({
-      name: "add",
       arguments: {
         a: 1,
         b: 2,
       },
+      name: "add",
     }),
   ).toEqual({
-    content: [{ type: "text", text: "3" }],
+    content: [{ text: "3", type: "text" }],
   });
 
   await client1.close();
@@ -1451,14 +1453,14 @@ test("allows new clients to connect after a client disconnects", async () => {
 
   expect(
     await client2.callTool({
-      name: "add",
       arguments: {
         a: 1,
         b: 2,
       },
+      name: "add",
     }),
   ).toEqual({
-    content: [{ type: "text", text: "3" }],
+    content: [{ text: "3", type: "text" }],
   });
 
   await client2.close();
@@ -1475,11 +1477,11 @@ test("able to close server immediately after starting it", async () => {
   });
 
   await server.start({
-    transportType: "sse",
     sse: {
       endpoint: "/sse",
       port,
     },
+    transportType: "sse",
   });
 
   // We were previously not waiting for the server to start.
@@ -1496,23 +1498,23 @@ test("closing event source does not produce error", async () => {
   });
 
   server.addTool({
-    name: "add",
     description: "Add two numbers",
+    execute: async (args) => {
+      return String(args.a + args.b);
+    },
+    name: "add",
     parameters: z.object({
       a: z.number(),
       b: z.number(),
     }),
-    execute: async (args) => {
-      return String(args.a + args.b);
-    },
   });
 
   await server.start({
-    transportType: "sse",
     sse: {
       endpoint: "/sse",
       port,
     },
+    transportType: "sse",
   });
 
   const eventSource = await new Promise<EventSourceClient>((onMessage) => {
@@ -1551,9 +1553,9 @@ test("provides auth to tools", async () => {
   });
 
   const server = new FastMCP<{ id: number }>({
+    authenticate,
     name: "Test",
     version: "1.0.0",
-    authenticate,
   });
 
   const execute = vi.fn(async (args) => {
@@ -1561,21 +1563,21 @@ test("provides auth to tools", async () => {
   });
 
   server.addTool({
-    name: "add",
     description: "Add two numbers",
+    execute,
+    name: "add",
     parameters: z.object({
       a: z.number(),
       b: z.number(),
     }),
-    execute,
   });
 
   await server.start({
-    transportType: "sse",
     sse: {
       endpoint: "/sse",
       port,
     },
+    transportType: "sse",
   });
 
   const client = new Client(
@@ -1614,14 +1616,14 @@ test("provides auth to tools", async () => {
 
   expect(
     await client.callTool({
-      name: "add",
       arguments: {
         a: 1,
         b: 2,
       },
+      name: "add",
     }),
   ).toEqual({
-    content: [{ type: "text", text: "3" }],
+    content: [{ text: "3", type: "text" }],
   });
 
   expect(execute, "execute should have been called").toHaveBeenCalledTimes(1);
@@ -1648,22 +1650,22 @@ test("blocks unauthorized requests", async () => {
   const port = await getRandomPort();
 
   const server = new FastMCP<{ id: number }>({
-    name: "Test",
-    version: "1.0.0",
     authenticate: async () => {
       throw new Response(null, {
         status: 401,
         statusText: "Unauthorized",
       });
     },
+    name: "Test",
+    version: "1.0.0",
   });
 
   await server.start({
-    transportType: "sse",
     sse: {
       endpoint: "/sse",
       port,
     },
+    transportType: "sse",
   });
 
   const client = new Client(

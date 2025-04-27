@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
+import { execa } from "execa";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { execa } from "execa";
 
 await yargs(hideBin(process.argv))
   .scriptName("fastmcp")
@@ -11,17 +11,17 @@ await yargs(hideBin(process.argv))
     "Start a development server",
     (yargs) => {
       return yargs.positional("file", {
-        type: "string",
-        describe: "The path to the server file",
         demandOption: true,
+        describe: "The path to the server file",
+        type: "string",
       });
     },
     async (argv) => {
       try {
         await execa({
+          stderr: "inherit",
           stdin: "inherit",
           stdout: "inherit",
-          stderr: "inherit",
         })`npx @wong2/mcp-cli npx tsx ${argv.file}`;
       } catch {
         process.exit(1);
@@ -33,16 +33,16 @@ await yargs(hideBin(process.argv))
     "Inspect a server file",
     (yargs) => {
       return yargs.positional("file", {
-        type: "string",
-        describe: "The path to the server file",
         demandOption: true,
+        describe: "The path to the server file",
+        type: "string",
       });
     },
     async (argv) => {
       try {
         await execa({
-          stdout: "inherit",
           stderr: "inherit",
+          stdout: "inherit",
         })`npx @modelcontextprotocol/inspector npx tsx ${argv.file}`;
       } catch {
         process.exit(1);
