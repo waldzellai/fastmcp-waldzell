@@ -26,7 +26,7 @@ import { fileTypeFromBuffer } from "file-type";
 import { readFile } from "fs/promises";
 import Fuse from "fuse.js";
 import http from "http";
-import { startSSEServer } from "mcp-proxy";
+import { startHTTPStreamServer, startSSEServer } from "mcp-proxy";
 import { StrictEventEmitter } from "strict-event-emitter-types";
 import { setTimeout as delay } from "timers/promises";
 import { fetch } from "undici";
@@ -1198,6 +1198,7 @@ export class FastMCP<
     return this.#sessions;
   }
   #authenticate: Authenticate<T> | undefined;
+  #httpStreamServer: null | SSEServer = null;
   #options: ServerOptions<T>;
   #prompts: InputPrompt[] = [];
   #resources: Resource[] = [];
@@ -1251,6 +1252,10 @@ export class FastMCP<
    */
   public async start(
     options:
+      | {
+          httpStream: { endpoint: `/${string}`; port: number };
+          transportType: "httpStream";
+        }
       | {
           sse: { endpoint: `/${string}`; port: number };
           transportType: "sse";
@@ -1317,6 +1322,44 @@ export class FastMCP<
       console.info(
         `[FastMCP info] server is running on SSE at http://localhost:${options.sse.port}${options.sse.endpoint}`,
       );
+    } else if (options.transportType === "httpStream") {
+      this.#httpStreamServer = await startHTTPStreamServer<FastMCPSession<T>>({
+        createServer: async (request) => {
+          let auth: T | undefined;
+
+          if (this.#authenticate) {
+            auth = await this.#authenticate(request);
+          }
+
+          return new FastMCPSession<T>({
+            auth,
+            name: this.#options.name,
+            prompts: this.#prompts,
+            resources: this.#resources,
+            resourcesTemplates: this.#resourcesTemplates,
+            tools: this.#tools,
+            version: this.#options.version,
+          });
+        },
+        endpoint: options.httpStream.endpoint as `/${string}`,
+        onClose: (session) => {
+          this.emit("disconnect", {
+            session,
+          });
+        },
+        onConnect: async (session) => {
+          this.#sessions.push(session);
+
+          this.emit("connect", {
+            session,
+          });
+        },
+        port: options.httpStream.port,
+      });
+
+      console.info(
+        `[FastMCP info] server is running on HTTP Stream at http://localhost:${options.httpStream.port}${options.httpStream.endpoint}`,
+      );
     } else {
       throw new Error("Invalid transport type");
     }
@@ -1327,7 +1370,10 @@ export class FastMCP<
    */
   public async stop() {
     if (this.#sseServer) {
-      this.#sseServer.close();
+      await this.#sseServer.close();
+    }
+    if (this.#httpStreamServer) {
+      await this.#httpStreamServer.close();
     }
   }
 }

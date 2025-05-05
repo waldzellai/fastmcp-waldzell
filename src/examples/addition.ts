@@ -1,10 +1,6 @@
 import { type } from "arktype";
 import * as v from "valibot";
 import { z } from "zod";
-
-/**
- * This is a complete example of an MCP server.
- */
 import { FastMCP } from "../FastMCP.js";
 
 const server = new FastMCP({
@@ -118,6 +114,51 @@ server.addPrompt({
   name: "git-commit",
 });
 
-server.start({
-  transportType: "stdio",
-});
+// Select transport type based on command line arguments
+const transportType = process.argv.includes("--http-stream")
+  ? "httpStream"
+  : "stdio";
+
+if (transportType === "httpStream") {
+  // Start with HTTP streaming transport
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
+
+  server.start({
+    httpStream: {
+      endpoint: "/stream",
+      port: PORT,
+    },
+    transportType: "httpStream",
+  });
+
+  console.log(
+    `HTTP Stream MCP server is running at http://localhost:${PORT}/stream`,
+  );
+  console.log("Use StreamableHTTPClientTransport to connect to this server");
+  console.log("For example:");
+  console.log(`
+  import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+  import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+  
+  const client = new Client(
+    {
+      name: "example-client",
+      version: "1.0.0",
+    },
+    {
+      capabilities: {},
+    },
+  );
+  
+  const transport = new StreamableHTTPClientTransport(
+    new URL("http://localhost:${PORT}/stream"),
+  );
+  
+  await client.connect(transport);
+  `);
+} else {
+  // Default to stdio transport
+  server.start({
+    transportType: "stdio",
+  });
+}

@@ -1,5 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
   CreateMessageRequestSchema,
   ErrorCode,
@@ -1353,7 +1354,7 @@ test("throws ErrorCode.InvalidParams if tool parameters do not match zod schema"
 
         // @ts-expect-error - we know that error is an McpError
         expect(error.message).toBe(
-          "MCP error -32602: MCP error -32602: Invalid add parameters: [{\"code\":\"invalid_type\",\"expected\":\"number\",\"received\":\"string\",\"path\":[\"b\"],\"message\":\"Expected number, received string\"}]",
+          'MCP error -32602: MCP error -32602: Invalid add parameters: [{"code":"invalid_type","expected":"number","received":"string","path":["b"],"message":"Expected number, received string"}]',
         );
       }
     },
@@ -1399,7 +1400,7 @@ test("server remains usable after InvalidParams error", async () => {
 
         // @ts-expect-error - we know that error is an McpError
         expect(error.message).toBe(
-          "MCP error -32602: MCP error -32602: Invalid add parameters: [{\"code\":\"invalid_type\",\"expected\":\"number\",\"received\":\"string\",\"path\":[\"b\"],\"message\":\"Expected number, received string\"}]",
+          'MCP error -32602: MCP error -32602: Invalid add parameters: [{"code":"invalid_type","expected":"number","received":"string","path":["b"],"message":"Expected number, received string"}]',
         );
       }
 
@@ -1746,4 +1747,84 @@ test("blocks unauthorized requests", async () => {
   expect(async () => {
     await client.connect(transport);
   }).rejects.toThrow("SSE error: Non-200 status code (401)");
+});
+
+// We now use a direct approach for testing HTTP Stream functionality
+// rather than a helper function
+
+// Set longer timeout for HTTP Stream tests
+test("HTTP Stream: calls a tool", { timeout: 20000 }, async () => {
+  console.log("Starting HTTP Stream test...");
+  const port = await getRandomPort();
+
+  // Create server directly (don't use helper function)
+  const server = new FastMCP({
+    name: "Test",
+    version: "1.0.0",
+  });
+
+  server.addTool({
+    description: "Add two numbers",
+    execute: async (args) => {
+      return String(args.a + args.b);
+    },
+    name: "add",
+    parameters: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
+  });
+
+  await server.start({
+    httpStream: {
+      endpoint: "/httpStream",
+      port,
+    },
+    transportType: "httpStream",
+  });
+
+  try {
+    // Create client
+    const client = new Client(
+      {
+        name: "example-client",
+        version: "1.0.0",
+      },
+      {
+        capabilities: {},
+      },
+    );
+
+    // IMPORTANT: Don't provide sessionId manually with HTTP streaming
+    // The server will generate a session ID automatically
+    const transport = new StreamableHTTPClientTransport(
+      new URL(`http://localhost:${port}/httpStream`),
+    );
+
+    // Connect client to server
+    await client.connect(transport);
+
+    // Wait a bit to ensure connection is established
+    await delay(1000);
+
+    // Call tool
+    const result = await client.callTool({
+      arguments: {
+        a: 1,
+        b: 2,
+      },
+      name: "add",
+    });
+
+    // Check result
+    expect(result).toEqual({
+      content: [{ text: "3", type: "text" }],
+    });
+
+    // Clean up connection
+    await transport.terminateSession();
+    await client.close();
+  } finally {
+    await server.stop();
+  }
 });
