@@ -1,3 +1,9 @@
+/**
+ * This is an example of a FastMCP server that adds two numbers.
+ * 
+ * If you are looking for a complete example of an MCP server repository,
+ * see https://github.com/punkpeye/fastmcp-boilerplate
+ */
 import { type } from "arktype";
 import * as v from "valibot";
 import { z } from "zod";
