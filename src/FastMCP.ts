@@ -26,7 +26,7 @@ import { fileTypeFromBuffer } from "file-type";
 import { readFile } from "fs/promises";
 import Fuse from "fuse.js";
 import http from "http";
-import { startSSEServer } from "mcp-proxy";
+import { startHTTPStreamServer, startSSEServer } from "mcp-proxy";
 import { StrictEventEmitter } from "strict-event-emitter-types";
 import { setTimeout as delay } from "timers/promises";
 import { fetch } from "undici";
@@ -48,41 +48,66 @@ type FastMCPSessionEvents = {
   rootsChanged: (event: { roots: Root[] }) => void;
 };
 
-/**
- * Generates an image content object from a URL, file path, or buffer.
- */
 export const imageContent = async (
   input: { buffer: Buffer } | { path: string } | { url: string },
 ): Promise<ImageContent> => {
   let rawData: Buffer;
 
-  if ("url" in input) {
-    const response = await fetch(input.url);
+  try {
+    if ("url" in input) {
+      try {
+        const response = await fetch(input.url);
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image from URL: ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(
+            `Server responded with status: ${response.status} - ${response.statusText}`,
+          );
+        }
+
+        rawData = Buffer.from(await response.arrayBuffer());
+      } catch (error) {
+        throw new Error(
+          `Failed to fetch image from URL (${input.url}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    } else if ("path" in input) {
+      try {
+        rawData = await readFile(input.path);
+      } catch (error) {
+        throw new Error(
+          `Failed to read image from path (${input.path}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    } else if ("buffer" in input) {
+      rawData = input.buffer;
+    } else {
+      throw new Error(
+        "Invalid input: Provide a valid 'url', 'path', or 'buffer'",
+      );
     }
 
-    rawData = Buffer.from(await response.arrayBuffer());
-  } else if ("path" in input) {
-    rawData = await readFile(input.path);
-  } else if ("buffer" in input) {
-    rawData = input.buffer;
-  } else {
-    throw new Error(
-      "Invalid input: Provide a valid 'url', 'path', or 'buffer'",
-    );
+    const mimeType = await fileTypeFromBuffer(rawData);
+
+    if (!mimeType || !mimeType.mime.startsWith("image/")) {
+      console.warn(
+        `Warning: Content may not be a valid image. Detected MIME: ${mimeType?.mime || "unknown"}`,
+      );
+    }
+
+    const base64Data = rawData.toString("base64");
+
+    return {
+      data: base64Data,
+      mimeType: mimeType?.mime ?? "image/png",
+      type: "image",
+    } as const;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error(`Unexpected error processing image: ${String(error)}`);
+    }
   }
-
-  const mimeType = await fileTypeFromBuffer(rawData);
-
-  const base64Data = rawData.toString("base64");
-
-  return {
-    data: base64Data,
-    mimeType: mimeType?.mime ?? "image/png",
-    type: "image",
-  } as const;
 };
 
 export const audioContent = async (
@@ -90,33 +115,61 @@ export const audioContent = async (
 ): Promise<AudioContent> => {
   let rawData: Buffer;
 
-  if ("url" in input) {
-    const response = await fetch(input.url);
+  try {
+    if ("url" in input) {
+      try {
+        const response = await fetch(input.url);
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch audio from URL: ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(
+            `Server responded with status: ${response.status} - ${response.statusText}`,
+          );
+        }
+
+        rawData = Buffer.from(await response.arrayBuffer());
+      } catch (error) {
+        throw new Error(
+          `Failed to fetch audio from URL (${input.url}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    } else if ("path" in input) {
+      try {
+        rawData = await readFile(input.path);
+      } catch (error) {
+        throw new Error(
+          `Failed to read audio from path (${input.path}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    } else if ("buffer" in input) {
+      rawData = input.buffer;
+    } else {
+      throw new Error(
+        "Invalid input: Provide a valid 'url', 'path', or 'buffer'",
+      );
     }
 
-    rawData = Buffer.from(await response.arrayBuffer());
-  } else if ("path" in input) {
-    rawData = await readFile(input.path);
-  } else if ("buffer" in input) {
-    rawData = input.buffer;
-  } else {
-    throw new Error(
-      "Invalid input: Provide a valid 'url', 'path', or 'buffer'",
-    );
+    const mimeType = await fileTypeFromBuffer(rawData);
+
+    if (!mimeType || !mimeType.mime.startsWith("audio/")) {
+      console.warn(
+        `Warning: Content may not be a valid audio file. Detected MIME: ${mimeType?.mime || "unknown"}`,
+      );
+    }
+
+    const base64Data = rawData.toString("base64");
+
+    return {
+      data: base64Data,
+      mimeType: mimeType?.mime ?? "audio/mpeg",
+      type: "audio",
+    } as const;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error(`Unexpected error processing audio: ${String(error)}`);
+    }
   }
-
-  const mimeType = await fileTypeFromBuffer(rawData);
-
-  const base64Data = rawData.toString("base64");
-
-  return {
-    data: base64Data,
-    mimeType: mimeType?.mime ?? "audio/mpeg",
-    type: "audio",
-  } as const;
 };
 
 type Context<T extends FastMCPSessionAuth> = {
@@ -377,6 +430,35 @@ type ServerOptions<T extends FastMCPSessionAuth> = {
   authenticate?: Authenticate<T>;
   instructions?: string;
   name: string;
+  ping?: {
+    /**
+     * Whether ping should be enabled by default.
+     * - true for SSE or HTTP Stream
+     * - false for stdio
+     */
+    enabled?: boolean;
+    /**
+     * Interval
+     * @default 5000 (5s)
+     */
+    intervalMs?: number;
+    /**
+     * Logging level for ping-related messages.
+     * @default 'debug'
+     */
+    logLevel?: LoggingLevel;
+  };
+  /**
+   * Configuration for roots capability
+   */
+  roots?: {
+    /**
+     * Whether roots capability should be enabled
+     * Set to false to completely disable roots support
+     * @default true
+     */
+    enabled?: boolean;
+  };
   version: `${number}.${number}.${number}`;
 };
 
@@ -394,6 +476,7 @@ type Tool<
   >;
   name: string;
   parameters?: Params;
+  timeoutMs?: number;
 };
 
 /**
@@ -467,6 +550,7 @@ export class FastMCPSession<
   #capabilities: ServerCapabilities = {};
   #clientCapabilities?: ClientCapabilities;
   #loggingLevel: LoggingLevel = "info";
+  #pingConfig?: ServerOptions<T>["ping"];
   #pingInterval: null | ReturnType<typeof setInterval> = null;
 
   #prompts: Prompt[] = [];
@@ -477,30 +561,38 @@ export class FastMCPSession<
 
   #roots: Root[] = [];
 
+  #rootsConfig?: ServerOptions<T>["roots"];
+
   #server: Server;
 
   constructor({
     auth,
     instructions,
     name,
+    ping,
     prompts,
     resources,
     resourcesTemplates,
+    roots,
     tools,
     version,
   }: {
     auth?: T;
     instructions?: string;
     name: string;
+    ping?: ServerOptions<T>["ping"];
     prompts: Prompt[];
     resources: Resource[];
     resourcesTemplates: InputResourceTemplate[];
+    roots?: ServerOptions<T>["roots"];
     tools: Tool<T>[];
     version: string;
   }) {
     super();
 
     this.#auth = auth;
+    this.#pingConfig = ping;
+    this.#rootsConfig = roots;
 
     if (tools.length) {
       this.#capabilities.tools = {};
@@ -592,28 +684,52 @@ export class FastMCPSession<
       console.warn("[FastMCP warning] could not infer client capabilities");
     }
 
-    if (this.#clientCapabilities?.roots?.listChanged) {
+    if (
+      this.#clientCapabilities?.roots?.listChanged &&
+      typeof this.#server.listRoots === "function"
+    ) {
       try {
         const roots = await this.#server.listRoots();
         this.#roots = roots.roots;
       } catch (e) {
-        console.error(
-          `[FastMCP error] received error listing roots.\n\n${e instanceof Error ? e.stack : JSON.stringify(e)}`,
-        );
+        if (e instanceof McpError && e.code === ErrorCode.MethodNotFound) {
+          console.debug(
+            "[FastMCP debug] listRoots method not supported by client",
+          );
+        } else {
+          console.error(
+            `[FastMCP error] received error listing roots.\n\n${e instanceof Error ? e.stack : JSON.stringify(e)}`,
+          );
+        }
       }
     }
 
     if (this.#clientCapabilities) {
-      this.#pingInterval = setInterval(async () => {
-        try {
-          await this.#server.ping();
-        } catch {
-          // The reason we are not emitting an error here is because some clients
-          // seem to not respond to the ping request, and we don't want to crash the server,
-          // e.g., https://github.com/punkpeye/fastmcp/issues/38.
-          console.warn("[FastMCP warning] server is not responding to ping");
-        }
-      }, 1000);
+      const pingConfig = this.#getPingConfig(transport);
+
+      if (pingConfig.enabled) {
+        this.#pingInterval = setInterval(async () => {
+          try {
+            await this.#server.ping();
+          } catch {
+            // The reason we are not emitting an error here is because some clients
+            // seem to not respond to the ping request, and we don't want to crash the server,
+            // e.g., https://github.com/punkpeye/fastmcp/issues/38.
+            const logLevel = pingConfig.logLevel;
+            if (logLevel === "debug") {
+              console.debug("[FastMCP debug] server ping failed");
+            } else if (logLevel === "warning") {
+              console.warn(
+                "[FastMCP warning] server is not responding to ping",
+              );
+            } else if (logLevel === "error") {
+              console.error("[FastMCP error] server is not responding to ping");
+            } else {
+              console.info("[FastMCP info] server ping failed");
+            }
+          }
+        }, pingConfig.intervalMs);
+      }
     }
   }
 
@@ -621,6 +737,30 @@ export class FastMCPSession<
     message: z.infer<typeof CreateMessageRequestSchema>["params"],
   ): Promise<SamplingResponse> {
     return this.#server.createMessage(message);
+  }
+
+  #getPingConfig(transport: Transport): {
+    enabled: boolean;
+    intervalMs: number;
+    logLevel: LoggingLevel;
+  } {
+    const pingConfig = this.#pingConfig || {};
+
+    let defaultEnabled = false;
+
+    if ("type" in transport) {
+      // Enable by default for SSE and HTTP streaming
+      if (transport.type === "sse" || transport.type === "httpStream") {
+        defaultEnabled = true;
+      }
+    }
+
+    return {
+      enabled:
+        pingConfig.enabled !== undefined ? pingConfig.enabled : defaultEnabled,
+      intervalMs: pingConfig.intervalMs || 5000,
+      logLevel: pingConfig.logLevel || "debug",
+    };
   }
 
   private addPrompt(inputPrompt: InputPrompt) {
@@ -963,18 +1103,46 @@ export class FastMCPSession<
   }
 
   private setupRootsHandlers() {
-    this.#server.setNotificationHandler(
-      RootsListChangedNotificationSchema,
-      () => {
-        this.#server.listRoots().then((roots) => {
-          this.#roots = roots.roots;
+    if (this.#rootsConfig?.enabled === false) {
+      console.debug(
+        "[FastMCP debug] roots capability explicitly disabled via config",
+      );
+      return;
+    }
 
-          this.emit("rootsChanged", {
-            roots: roots.roots,
-          });
-        });
-      },
-    );
+    // Only set up roots notification handling if the server supports it
+    if (typeof this.#server.listRoots === "function") {
+      this.#server.setNotificationHandler(
+        RootsListChangedNotificationSchema,
+        () => {
+          this.#server
+            .listRoots()
+            .then((roots) => {
+              this.#roots = roots.roots;
+
+              this.emit("rootsChanged", {
+                roots: roots.roots,
+              });
+            })
+            .catch((error) => {
+              if (
+                error instanceof McpError &&
+                error.code === ErrorCode.MethodNotFound
+              ) {
+                console.debug(
+                  "[FastMCP debug] listRoots method not supported by client",
+                );
+              } else {
+                console.error("[FastMCP error] Error listing roots", error);
+              }
+            });
+        },
+      );
+    } else {
+      console.debug(
+        "[FastMCP debug] roots capability not available, not setting up notification handler",
+      );
+    }
   }
 
   private setupToolHandlers(tools: Tool<T>[]) {
@@ -987,7 +1155,7 @@ export class FastMCPSession<
               description: tool.description,
               inputSchema: tool.parameters
                 ? await toJsonSchema(tool.parameters)
-                : undefined,
+                : {}, // For compatibility
               name: tool.name,
             };
           }),
@@ -1015,7 +1183,7 @@ export class FastMCPSession<
         if (parsed.issues) {
           throw new McpError(
             ErrorCode.InvalidParams,
-            `Invalid ${request.params.name} parameters`,
+            `Invalid ${request.params.name} parameters: ${JSON.stringify(parsed.issues)}`,
           );
         }
 
@@ -1076,11 +1244,28 @@ export class FastMCPSession<
           },
         };
 
-        const maybeStringResult = await tool.execute(args, {
+        // Create a promise for tool execution
+        const executeToolPromise = tool.execute(args, {
           log,
           reportProgress,
           session: this.#auth,
         });
+
+        // Handle timeout if specified
+        const maybeStringResult = await (tool.timeoutMs
+          ? Promise.race([
+              executeToolPromise,
+              new Promise<never>((_, reject) => {
+                setTimeout(() => {
+                  reject(
+                    new UserError(
+                      `Tool execution timed out after ${tool.timeoutMs}ms`,
+                    ),
+                  );
+                }, tool.timeoutMs);
+              }),
+            ])
+          : executeToolPromise);
 
         if (typeof maybeStringResult === "string") {
           result = ContentResultZodSchema.parse({
@@ -1127,6 +1312,7 @@ export class FastMCP<
     return this.#sessions;
   }
   #authenticate: Authenticate<T> | undefined;
+  #httpStreamServer: null | SSEServer = null;
   #options: ServerOptions<T>;
   #prompts: InputPrompt[] = [];
   #resources: Resource[] = [];
@@ -1181,6 +1367,10 @@ export class FastMCP<
   public async start(
     options:
       | {
+          httpStream: { endpoint: `/${string}`; port: number };
+          transportType: "httpStream";
+        }
+      | {
           sse: { endpoint: `/${string}`; port: number };
           transportType: "sse";
         }
@@ -1194,9 +1384,11 @@ export class FastMCP<
       const session = new FastMCPSession<T>({
         instructions: this.#options.instructions,
         name: this.#options.name,
+        ping: this.#options.ping,
         prompts: this.#prompts,
         resources: this.#resources,
         resourcesTemplates: this.#resourcesTemplates,
+        roots: this.#options.roots,
         tools: this.#tools,
         version: this.#options.version,
       });
@@ -1220,9 +1412,11 @@ export class FastMCP<
           return new FastMCPSession<T>({
             auth,
             name: this.#options.name,
+            ping: this.#options.ping,
             prompts: this.#prompts,
             resources: this.#resources,
             resourcesTemplates: this.#resourcesTemplates,
+            roots: this.#options.roots,
             tools: this.#tools,
             version: this.#options.version,
           });
@@ -1246,6 +1440,46 @@ export class FastMCP<
       console.info(
         `[FastMCP info] server is running on SSE at http://localhost:${options.sse.port}${options.sse.endpoint}`,
       );
+    } else if (options.transportType === "httpStream") {
+      this.#httpStreamServer = await startHTTPStreamServer<FastMCPSession<T>>({
+        createServer: async (request) => {
+          let auth: T | undefined;
+
+          if (this.#authenticate) {
+            auth = await this.#authenticate(request);
+          }
+
+          return new FastMCPSession<T>({
+            auth,
+            name: this.#options.name,
+            ping: this.#options.ping,
+            prompts: this.#prompts,
+            resources: this.#resources,
+            resourcesTemplates: this.#resourcesTemplates,
+            roots: this.#options.roots,
+            tools: this.#tools,
+            version: this.#options.version,
+          });
+        },
+        endpoint: options.httpStream.endpoint as `/${string}`,
+        onClose: (session) => {
+          this.emit("disconnect", {
+            session,
+          });
+        },
+        onConnect: async (session) => {
+          this.#sessions.push(session);
+
+          this.emit("connect", {
+            session,
+          });
+        },
+        port: options.httpStream.port,
+      });
+
+      console.info(
+        `[FastMCP info] server is running on HTTP Stream at http://localhost:${options.httpStream.port}${options.httpStream.endpoint}`,
+      );
     } else {
       throw new Error("Invalid transport type");
     }
@@ -1256,7 +1490,10 @@ export class FastMCP<
    */
   public async stop() {
     if (this.#sseServer) {
-      this.#sseServer.close();
+      await this.#sseServer.close();
+    }
+    if (this.#httpStreamServer) {
+      await this.#httpStreamServer.close();
     }
   }
 }

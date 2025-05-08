@@ -2,13 +2,22 @@ import { type } from "arktype";
 import * as v from "valibot";
 import { z } from "zod";
 
-/**
- * This is a complete example of an MCP server.
- */
 import { FastMCP } from "../FastMCP.js";
 
 const server = new FastMCP({
   name: "Addition",
+  ping: {
+    // enabled: undefined,
+    // Automatically enabled/disabled based on transport type
+    // Using a longer interval to reduce log noise
+    intervalMs: 10000, // default is 5000ms
+    // Reduce log verbosity
+    logLevel: "debug", // default
+  },
+  roots: {
+    // You can explicitly disable roots support if needed
+    // enabled: false,
+  },
   version: "1.0.0",
 });
 
@@ -49,13 +58,26 @@ server.addTool({
     title: "Addition (ArkType)",
   },
   description: "Add two numbers (using ArkType schema)",
-  execute: async (args) => {
+  execute: async (args, { log }) => {
     // args is typed as { a: number, b: number } based on AddParamsArkType.infer
     console.log(`[ArkType] Adding ${args.a} and ${args.b}`);
+
+    // Demonstrate long-running operation that might need a timeout
+    log.info("Starting calculation with potential delay...");
+
+    // Simulate a complex calculation process
+    if (args.a > 1000 || args.b > 1000) {
+      log.warn("Large numbers detected, operation might take longer");
+      // In a real implementation, this delay might be a slow operation
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
     return String(args.a + args.b);
   },
   name: "add-arktype",
   parameters: AddParamsArkType,
+  // Will abort execution after 2s
+  timeoutMs: 2000,
 });
 
 // --- Valibot Example ---
@@ -105,6 +127,80 @@ server.addPrompt({
   name: "git-commit",
 });
 
-server.start({
-  transportType: "stdio",
-});
+// Select transport type based on command line arguments
+const transportType = process.argv.includes("--http-stream")
+  ? "httpStream"
+  : "stdio";
+
+if (transportType === "httpStream") {
+  // Start with HTTP streaming transport
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
+
+  server.start({
+    httpStream: {
+      endpoint: "/stream",
+      port: PORT,
+    },
+    transportType: "httpStream",
+  });
+
+  console.log(
+    `HTTP Stream MCP server is running at http://localhost:${PORT}/stream`,
+  );
+  console.log("Use StreamableHTTPClientTransport to connect to this server");
+  console.log("For example:");
+  console.log(`
+  import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+  import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+  
+  const client = new Client(
+    {
+      name: "example-client",
+      version: "1.0.0",
+    },
+    {
+      capabilities: {},
+    },
+  );
+  
+  const transport = new StreamableHTTPClientTransport(
+    new URL("http://localhost:${PORT}/stream"),
+  );
+  
+  await client.connect(transport);
+  `);
+} else if (process.argv.includes("--explicit-ping-config")) {
+  server.start({
+    transportType: "stdio",
+  });
+
+  console.log(
+    "Started stdio transport with explicit ping configuration from server options",
+  );
+} else if (process.argv.includes("--disable-roots")) {
+  // Example of disabling roots at runtime
+  const serverWithDisabledRoots = new FastMCP({
+    name: "Addition (No Roots)",
+    ping: {
+      intervalMs: 10000,
+      logLevel: "debug",
+    },
+    roots: {
+      enabled: false,
+    },
+    version: "1.0.0",
+  });
+
+  serverWithDisabledRoots.start({
+    transportType: "stdio",
+  });
+
+  console.log("Started stdio transport with roots support disabled");
+} else {
+  // Disable by default for:
+  server.start({
+    transportType: "stdio",
+  });
+
+  console.log("Started stdio transport with ping disabled by default");
+}
