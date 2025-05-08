@@ -228,6 +228,42 @@ server.addTool({
 });
 ```
 
+#### Tools Without Parameters
+
+When creating tools that don't require parameters, you have two options:
+
+1. Omit the parameters property entirely:
+
+   ```typescript
+   server.addTool({
+     name: "sayHello",
+     description: "Say hello",
+     // No parameters property
+     execute: async () => {
+       return "Hello, world!";
+     },
+   });
+   ```
+
+2. Explicitly define empty parameters:
+
+   ```typescript
+   import { z } from "zod";
+
+   server.addTool({
+     name: "sayHello",
+     description: "Say hello",
+     parameters: z.object({}), // Empty object
+     execute: async () => {
+       return "Hello, world!";
+     },
+   });
+   ```
+
+> [!NOTE]
+>
+> Both approaches are fully compatible with all MCP clients, including Cursor. FastMCP automatically generates the proper schema in both cases.
+
 #### Returning a string
 
 `execute` can return a string:
