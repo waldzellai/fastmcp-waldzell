@@ -17,12 +17,12 @@ import { expect, test, vi } from "vitest";
 import { z } from "zod";
 
 import {
+  type ContentResult,
   FastMCP,
   FastMCPSession,
   imageContent,
-  UserError,
   type TextContent,
-  type ContentResult,
+  UserError,
 } from "./FastMCP.js";
 
 const runWithTestServer = async ({
@@ -1004,17 +1004,6 @@ test("session listens to roots changes", async () => {
 
 test("session sends pings to the client", async () => {
   await runWithTestServer({
-    server: async () => {
-      const server = new FastMCP({
-        name: "Test",
-        version: "1.0.0",
-        ping: {
-          enabled: true,
-          intervalMs: 1000,
-        },
-      });
-      return server;
-    },
     run: async ({ client }) => {
       const onPing = vi.fn().mockReturnValue({});
 
@@ -1024,6 +1013,17 @@ test("session sends pings to the client", async () => {
 
       expect(onPing.mock.calls.length).toBeGreaterThanOrEqual(1);
       expect(onPing.mock.calls.length).toBeLessThanOrEqual(3);
+    },
+    server: async () => {
+      const server = new FastMCP({
+        name: "Test",
+        ping: {
+          enabled: true,
+          intervalMs: 1000,
+        },
+        version: "1.0.0",
+      });
+      return server;
     },
   });
 });
