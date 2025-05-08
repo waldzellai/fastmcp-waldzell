@@ -4,7 +4,8 @@
   "main": "dist/FastMCP.js",
   "scripts": {
     "build": "tsup",
-    "test": "vitest run && tsc && jsr publish --dry-run",
+    "lint": "prettier --check . && eslint . && tsc --noEmit && jsr publish --dry-run",
+    "test": "vitest run",
     "format": "prettier --write . && eslint --fix ."
   },
   "bin": {
