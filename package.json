@@ -54,6 +54,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
+    "@modelcontextprotocol/inspector": "^0.11.0",
     "@sebbo2002/semantic-release-jsr": "^2.0.5",
     "@tsconfig/node22": "^22.0.1",
     "@types/node": "^22.14.1",

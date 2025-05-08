@@ -22,7 +22,7 @@ await yargs(hideBin(process.argv))
           stderr: "inherit",
           stdin: "inherit",
           stdout: "inherit",
-        })`npx -y @wong2/mcp-cli npx -y tsx ${argv.file}`;
+        })`npx @wong2/mcp-cli npx tsx ${argv.file}`;
       } catch (error) {
         console.error(
           "[FastMCP Error] Failed to start development server:",
@@ -47,7 +47,7 @@ await yargs(hideBin(process.argv))
         await execa({
           stderr: "inherit",
           stdout: "inherit",
-        })`npx -y @modelcontextprotocol/inspector npx -y tsx ${argv.file}`;
+        })`npx @modelcontextprotocol/inspector npx tsx ${argv.file}`;
       } catch (error) {
         console.error(
           "[FastMCP Error] Failed to inspect server:",
