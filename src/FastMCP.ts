@@ -264,11 +264,29 @@ const ImageContentZodSchema = z
   })
   .strict() satisfies z.ZodType<ImageContent>;
 
-type Content = ImageContent | TextContent;
+type AudioContent = {
+  data: string;
+  mimeType: string;
+  type: "audio";
+};
+
+const AudioContentZodSchema = z
+  .object({
+    /**
+     * The base64-encoded audio data.
+     */
+    data: z.string().base64(),
+    mimeType: z.string(),
+    type: z.literal("audio"),
+  })
+  .strict() satisfies z.ZodType<AudioContent>;
+
+type Content = AudioContent | ImageContent | TextContent;
 
 const ContentZodSchema = z.discriminatedUnion("type", [
   TextContentZodSchema,
   ImageContentZodSchema,
+  AudioContentZodSchema,
 ]) satisfies z.ZodType<Content>;
 
 type ContentResult = {
