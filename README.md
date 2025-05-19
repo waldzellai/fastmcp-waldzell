@@ -892,8 +892,6 @@ server.addPrompt({
 FastMCP allows you to `authenticate` clients using a custom function:
 
 ```ts
-import { AuthError } from "fastmcp";
-
 const server = new FastMCP({
   name: "My Server",
   version: "1.0.0",
