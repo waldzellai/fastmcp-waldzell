@@ -840,7 +840,6 @@ test("handles multiple clients", async () => {
 
   await server.start({
     httpStream: {
-      endpoint: "/stream",
       port,
     },
     transportType: "httpStream",
@@ -1958,7 +1957,7 @@ test("HTTP Stream: calls a tool", { timeout: 20000 }, async () => {
 
     // Clean up connection
     await transport.terminateSession();
-    
+
     await client.close();
   } finally {
     await server.stop();

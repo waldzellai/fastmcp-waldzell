@@ -181,7 +181,6 @@ if (transportType === "httpStream") {
 
   server.start({
     httpStream: {
-      endpoint: "/stream",
       port: PORT,
     },
     transportType: "httpStream",

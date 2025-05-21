@@ -97,7 +97,6 @@ You can run the server with HTTP streaming support:
 server.start({
   transportType: "httpStream",
   httpStream: {
-    endpoint: "/stream",
     port: 8080,
   },
 });
