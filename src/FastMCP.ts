@@ -25,7 +25,7 @@ import { fileTypeFromBuffer } from "file-type";
 import { readFile } from "fs/promises";
 import Fuse from "fuse.js";
 import http from "http";
-import { startHTTPStreamServer, startSSEServer } from "mcp-proxy";
+import { startHTTPServer } from "mcp-proxy";
 import { StrictEventEmitter } from "strict-event-emitter-types";
 import { setTimeout as delay } from "timers/promises";
 import { fetch } from "undici";
@@ -774,7 +774,7 @@ export class FastMCPSession<
 
     if ("type" in transport) {
       // Enable by default for SSE and HTTP streaming
-      if (transport.type === "sse" || transport.type === "httpStream") {
+      if (transport.type === "httpStream") {
         defaultEnabled = true;
       }
     }
@@ -1372,7 +1372,6 @@ export class FastMCP<
   #resources: Resource[] = [];
   #resourcesTemplates: InputResourceTemplate[] = [];
   #sessions: FastMCPSession<T>[] = [];
-  #sseServer: null | SSEServer = null;
 
   #tools: Tool<T>[] = [];
 
@@ -1421,12 +1420,8 @@ export class FastMCP<
   public async start(
     options:
       | {
-          httpStream: { endpoint: `/${string}`; port: number };
+          httpStream: { port: number };
           transportType: "httpStream";
-        }
-      | {
-          sse: { endpoint: `/${string}`; port: number };
-          transportType: "sse";
         }
       | { transportType: "stdio" } = {
       transportType: "stdio",
@@ -1454,48 +1449,8 @@ export class FastMCP<
       this.emit("connect", {
         session,
       });
-    } else if (options.transportType === "sse") {
-      this.#sseServer = await startSSEServer<FastMCPSession<T>>({
-        createServer: async (request) => {
-          let auth: T | undefined;
-
-          if (this.#authenticate) {
-            auth = await this.#authenticate(request);
-          }
-
-          return new FastMCPSession<T>({
-            auth,
-            name: this.#options.name,
-            ping: this.#options.ping,
-            prompts: this.#prompts,
-            resources: this.#resources,
-            resourcesTemplates: this.#resourcesTemplates,
-            roots: this.#options.roots,
-            tools: this.#tools,
-            version: this.#options.version,
-          });
-        },
-        endpoint: options.sse.endpoint as `/${string}`,
-        onClose: (session) => {
-          this.emit("disconnect", {
-            session,
-          });
-        },
-        onConnect: async (session) => {
-          this.#sessions.push(session);
-
-          this.emit("connect", {
-            session,
-          });
-        },
-        port: options.sse.port,
-      });
-
-      console.info(
-        `[FastMCP info] server is running on SSE at http://localhost:${options.sse.port}${options.sse.endpoint}`,
-      );
     } else if (options.transportType === "httpStream") {
-      this.#httpStreamServer = await startHTTPStreamServer<FastMCPSession<T>>({
+      this.#httpStreamServer = await startHTTPServer<FastMCPSession<T>>({
         createServer: async (request) => {
           let auth: T | undefined;
 
@@ -1515,7 +1470,6 @@ export class FastMCP<
             version: this.#options.version,
           });
         },
-        endpoint: options.httpStream.endpoint as `/${string}`,
         onClose: (session) => {
           this.emit("disconnect", {
             session,
@@ -1532,7 +1486,7 @@ export class FastMCP<
       });
 
       console.info(
-        `[FastMCP info] server is running on HTTP Stream at http://localhost:${options.httpStream.port}${options.httpStream.endpoint}`,
+        `[FastMCP info] server is running on HTTP Stream at http://localhost:${options.httpStream.port}/stream`,
       );
     } else {
       throw new Error("Invalid transport type");
@@ -1543,9 +1497,6 @@ export class FastMCP<
    * Stops the server.
    */
   public async stop() {
-    if (this.#sseServer) {
-      await this.#sseServer.close();
-    }
     if (this.#httpStreamServer) {
       await this.#httpStreamServer.close();
     }

@@ -52,11 +52,10 @@ const runWithTestServer = async ({
       });
 
   await server.start({
-    sse: {
-      endpoint: "/sse",
+    httpStream: {
       port,
     },
-    transportType: "sse",
+    transportType: "httpStream",
   });
 
   try {
@@ -792,11 +791,10 @@ test("uses events to notify server of client connect/disconnect", async () => {
   server.on("disconnect", onDisconnect);
 
   await server.start({
-    sse: {
-      endpoint: "/sse",
+    httpStream: {
       port,
     },
-    transportType: "sse",
+    transportType: "httpStream",
   });
 
   const client = new Client(
@@ -841,11 +839,11 @@ test("handles multiple clients", async () => {
   });
 
   await server.start({
-    sse: {
-      endpoint: "/sse",
+    httpStream: {
+      endpoint: "/stream",
       port,
     },
-    transportType: "sse",
+    transportType: "httpStream",
   });
 
   const client1 = new Client(
@@ -1522,11 +1520,10 @@ test("allows new clients to connect after a client disconnects", async () => {
   });
 
   await server.start({
-    sse: {
-      endpoint: "/sse",
+    httpStream: {
       port,
     },
-    transportType: "sse",
+    transportType: "httpStream",
   });
 
   const client1 = new Client(
@@ -1601,11 +1598,10 @@ test("able to close server immediately after starting it", async () => {
   });
 
   await server.start({
-    sse: {
-      endpoint: "/sse",
+    httpStream: {
       port,
     },
-    transportType: "sse",
+    transportType: "httpStream",
   });
 
   // We were previously not waiting for the server to start.
@@ -1634,11 +1630,10 @@ test("closing event source does not produce error", async () => {
   });
 
   await server.start({
-    sse: {
-      endpoint: "/sse",
+    httpStream: {
       port,
     },
-    transportType: "sse",
+    transportType: "httpStream",
   });
 
   const eventSource = await new Promise<EventSourceClient>((onMessage) => {
@@ -1697,11 +1692,10 @@ test("provides auth to tools", async () => {
   });
 
   await server.start({
-    sse: {
-      endpoint: "/sse",
+    httpStream: {
       port,
     },
-    transportType: "sse",
+    transportType: "httpStream",
   });
 
   const client = new Client(
@@ -1865,11 +1859,10 @@ test("blocks unauthorized requests", async () => {
   });
 
   await server.start({
-    sse: {
-      endpoint: "/sse",
+    httpStream: {
       port,
     },
-    transportType: "sse",
+    transportType: "httpStream",
   });
 
   const client = new Client(
@@ -1897,6 +1890,7 @@ test("blocks unauthorized requests", async () => {
 // Set longer timeout for HTTP Stream tests
 test("HTTP Stream: calls a tool", { timeout: 20000 }, async () => {
   console.log("Starting HTTP Stream test...");
+
   const port = await getRandomPort();
 
   // Create server directly (don't use helper function)
@@ -1919,7 +1913,6 @@ test("HTTP Stream: calls a tool", { timeout: 20000 }, async () => {
 
   await server.start({
     httpStream: {
-      endpoint: "/httpStream",
       port,
     },
     transportType: "httpStream",
@@ -1940,7 +1933,7 @@ test("HTTP Stream: calls a tool", { timeout: 20000 }, async () => {
     // IMPORTANT: Don't provide sessionId manually with HTTP streaming
     // The server will generate a session ID automatically
     const transport = new StreamableHTTPClientTransport(
-      new URL(`http://localhost:${port}/httpStream`),
+      new URL(`http://localhost:${port}/stream`),
     );
 
     // Connect client to server
@@ -1965,6 +1958,7 @@ test("HTTP Stream: calls a tool", { timeout: 20000 }, async () => {
 
     // Clean up connection
     await transport.terminateSession();
+    
     await client.close();
   } finally {
     await server.stop();
