@@ -16,6 +16,7 @@ import { setTimeout as delay } from "timers/promises";
 import { fetch } from "undici";
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
+import { z as z4 } from "zod/v4";
 
 import {
   audioContent,
@@ -130,6 +131,52 @@ test("adds tools", async () => {
           a: z.number(),
           b: z.number(),
         }),
+      });
+
+      return server;
+    },
+  });
+});
+
+test("adds tools with Zod v4 schema", async () => {
+  await runWithTestServer({
+    run: async ({ client }) => {
+      expect(await client.listTools()).toEqual({
+        tools: [
+          {
+            description: "Add two numbers (using Zod v4 schema)",
+            inputSchema: {
+              $schema: "https://json-schema.org/draft-2020-12/schema",
+              properties: {
+                a: { type: "number" },
+                b: { type: "number" },
+              },
+              required: ["a", "b"],
+              type: "object",
+            },
+            name: "add-zod-v4",
+          },
+        ],
+      });
+    },
+    server: async () => {
+      const server = new FastMCP({
+        name: "Test",
+        version: "1.0.0",
+      });
+
+      const AddParamsZod4 = z4.object({
+        a: z4.number(),
+        b: z4.number(),
+      });
+
+      server.addTool({
+        description: "Add two numbers (using Zod v4 schema)",
+        execute: async (args) => {
+          return String(args.a + args.b);
+        },
+        name: "add-zod-v4",
+        parameters: AddParamsZod4,
       });
 
       return server;

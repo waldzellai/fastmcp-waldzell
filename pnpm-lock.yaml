@@ -35,8 +35,8 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0
       xsschema:
-        specifier: 0.2.0-beta.3
-        version: 0.2.0-beta.3(@valibot/to-json-schema@1.0.0(valibot@1.0.0(typescript@5.8.3)))(arktype@2.1.20)(zod-to-json-schema@3.24.5(zod@3.25.12))
+        specifier: 0.3.0-beta.1
+        version: 0.3.0-beta.1(@valibot/to-json-schema@1.0.0(valibot@1.0.0(typescript@5.8.3)))(arktype@2.1.20)(zod-to-json-schema@3.24.5(zod@3.25.12))(zod@3.25.12)
       yargs:
         specifier: ^17.7.2
         version: 17.7.2
@@ -6001,15 +6001,17 @@ packages:
       utf-8-validate:
         optional: true
 
-  xsschema@0.2.0-beta.3:
+  xsschema@0.3.0-beta.1:
     resolution:
       {
-        integrity: sha512-ViOZ1a1kAPHvFjDJp4ITeutdlbnEs56lx/NotlvcitwN04eHnU3DhR+P5GvXT7A+69qKrXAx0YrccvmfwGnUGw==,
+        integrity: sha512-Z7ZlPKLTc8iUKVfic0Lr66NB777wJqZl3JVLIy1vaNxx6NNTuylYm4wbK78Sgg7kHwaPRqFnuT4IliQM1sDxvg==,
       }
     peerDependencies:
       "@valibot/to-json-schema": ^1.0.0
       arktype: ^2.1.16
       effect: ^3.14.5
+      sury: ^10.0.0-rc
+      zod: ^3.25.0
       zod-to-json-schema: ^3.24.5
     peerDependenciesMeta:
       "@valibot/to-json-schema":
@@ -6017,6 +6019,10 @@ packages:
       arktype:
         optional: true
       effect:
+        optional: true
+      sury:
+        optional: true
+      zod:
         optional: true
       zod-to-json-schema:
         optional: true
@@ -9477,10 +9483,11 @@ snapshots:
 
   ws@8.18.2: {}
 
-  xsschema@0.2.0-beta.3(@valibot/to-json-schema@1.0.0(valibot@1.0.0(typescript@5.8.3)))(arktype@2.1.20)(zod-to-json-schema@3.24.5(zod@3.25.12)):
+  xsschema@0.3.0-beta.1(@valibot/to-json-schema@1.0.0(valibot@1.0.0(typescript@5.8.3)))(arktype@2.1.20)(zod-to-json-schema@3.24.5(zod@3.25.12))(zod@3.25.12):
     optionalDependencies:
       "@valibot/to-json-schema": 1.0.0(valibot@1.0.0(typescript@5.8.3))
       arktype: 2.1.20
+      zod: 3.25.12
       zod-to-json-schema: 3.24.5(zod@3.25.12)
 
   xtend@4.0.2: {}
