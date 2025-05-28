@@ -1484,7 +1484,7 @@ test("throws ErrorCode.InvalidParams if tool parameters do not match zod schema"
 
         // @ts-expect-error - we know that error is an McpError
         expect(error.message).toBe(
-          'MCP error -32602: MCP error -32602: Invalid add parameters: [{"code":"invalid_type","expected":"number","received":"string","path":["b"],"message":"Expected number, received string"}]',
+          "MCP error -32602: MCP error -32602: Tool 'add' parameter validation failed: b: Expected number, received string",
         );
       }
     },
@@ -1530,7 +1530,7 @@ test("server remains usable after InvalidParams error", async () => {
 
         // @ts-expect-error - we know that error is an McpError
         expect(error.message).toBe(
-          'MCP error -32602: MCP error -32602: Invalid add parameters: [{"code":"invalid_type","expected":"number","received":"string","path":["b"],"message":"Expected number, received string"}]',
+          "MCP error -32602: MCP error -32602: Tool 'add' parameter validation failed: b: Expected number, received string",
         );
       }
 
@@ -1868,7 +1868,7 @@ test("supports streaming output from tools", async () => {
         annotations: {
           streamingHint: true,
         },
-        description: "Tool yang streaming dan mengembalikan void",
+        description: "A streaming tool that returns void",
         execute: async (_args, context) => {
           await context.streamContent({
             text: "Streaming content 1",
@@ -1891,7 +1891,7 @@ test("supports streaming output from tools", async () => {
         annotations: {
           streamingHint: true,
         },
-        description: "Tool yang streaming dan mengembalikan hasil",
+        description: "A streaming tool that returns a result.",
         execute: async (_args, context) => {
           await context.streamContent({
             text: "Streaming content 1",
