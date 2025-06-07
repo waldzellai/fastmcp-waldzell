@@ -148,7 +148,8 @@ test("adds tools with Zod v4 schema", async () => {
           {
             description: "Add two numbers (using Zod v4 schema)",
             inputSchema: {
-              $schema: "https://json-schema.org/draft-2020-12/schema",
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              additionalProperties: false,
               properties: {
                 a: { type: "number" },
                 b: { type: "number" },
