@@ -129,7 +129,7 @@ server.start({
 });
 ```
 
-This will start the server and listen for HTTP streaming connections on `http://localhost:8080/stream`.
+This will start the server and listen for HTTP streaming connections on `http://localhost:8080/mcp`.
 
 You can connect to these servers using the appropriate client transport.
 
@@ -149,7 +149,7 @@ const client = new Client(
 );
 
 const transport = new StreamableHTTPClientTransport(
-  new URL(`http://localhost:8080/stream`),
+  new URL(`http://localhost:8080/mcp`),
 );
 
 await client.connect(transport);

@@ -24,8 +24,8 @@ importers:
         specifier: ^7.1.0
         version: 7.1.0
       mcp-proxy:
-        specifier: ^3.0.3
-        version: 3.0.3
+        specifier: ^4.0.0
+        version: 4.0.0
       strict-event-emitter-types:
         specifier: ^2.0.0
         version: 2.0.0
@@ -611,8 +611,8 @@ packages:
     peerDependencies:
       '@types/react': '*'
       '@types/react-dom': '*'
-      react: 19.1.0
-      react-dom: 19.1.0
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
     peerDependenciesMeta:
       '@types/react':
         optional: true
@@ -862,8 +862,8 @@ packages:
     peerDependencies:
       '@types/react': '*'
       '@types/react-dom': '*'
-      react: 19.1.0
-      react-dom: 19.1.0
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
     peerDependenciesMeta:
       '@types/react':
         optional: true
@@ -2297,8 +2297,8 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
-  mcp-proxy@3.0.3:
-    resolution: {integrity: sha512-awolv2Jkq9fl6QkLFHApTdy6veSuhzN0KA8AF2Ea6H58yBRAJyLf2Eavm08XU1bTn0ydfmTSGfyL2VMzxAHPFQ==}
+  mcp-proxy@4.0.0:
+    resolution: {integrity: sha512-AeSQW7DJr3XhhqlctWfSYOJIlI1TpQEEIVHdFW9/0xfYwtIo2ueOS9dHpBOJJWmER0kvE5rZnSw6o+yK8lk9OA==}
     hasBin: true
 
   media-typer@1.1.0:
@@ -5713,7 +5713,7 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  mcp-proxy@3.0.3:
+  mcp-proxy@4.0.0:
     dependencies:
       '@modelcontextprotocol/sdk': 1.12.1
       eventsource: 4.0.0

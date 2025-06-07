@@ -1785,7 +1785,7 @@ export class FastMCP<
       });
 
       console.info(
-        `[FastMCP info] server is running on HTTP Stream at http://localhost:${options.httpStream.port}/stream`,
+        `[FastMCP info] server is running on HTTP Stream at http://localhost:${options.httpStream.port}/mcp`,
       );
     } else {
       throw new Error("Invalid transport type");

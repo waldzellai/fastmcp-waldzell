@@ -272,7 +272,7 @@ if (transportType === "httpStream") {
   });
 
   console.log(
-    `HTTP Stream MCP server is running at http://localhost:${PORT}/stream`,
+    `HTTP Stream MCP server is running at http://localhost:${PORT}/mcp`,
   );
   console.log("Use StreamableHTTPClientTransport to connect to this server");
   console.log("For example:");
@@ -291,7 +291,7 @@ if (transportType === "httpStream") {
   );
   
   const transport = new StreamableHTTPClientTransport(
-    new URL("http://localhost:${PORT}/stream"),
+    new URL("http://localhost:${PORT}/mcp"),
   );
   
   await client.connect(transport);

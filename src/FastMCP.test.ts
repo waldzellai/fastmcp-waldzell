@@ -2208,7 +2208,7 @@ test("HTTP Stream: calls a tool", { timeout: 20000 }, async () => {
     // IMPORTANT: Don't provide sessionId manually with HTTP streaming
     // The server will generate a session ID automatically
     const transport = new StreamableHTTPClientTransport(
-      new URL(`http://localhost:${port}/stream`),
+      new URL(`http://localhost:${port}/mcp`),
     );
 
     // Connect client to server and wait for session to be ready
