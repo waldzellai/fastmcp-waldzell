@@ -1714,7 +1714,7 @@ export class FastMCP<
   public async start(
     options:
       | {
-          httpStream: { port: number };
+          httpStream: { endpoint?: `/${string}`; port: number };
           transportType: "httpStream";
         }
       | { transportType: "stdio" } = {
@@ -1835,6 +1835,7 @@ export class FastMCP<
           res.writeHead(404).end();
         },
         port: options.httpStream.port,
+        streamEndpoint: options.httpStream.endpoint ?? "/mcp",
       });
 
       console.info(
