@@ -8,6 +8,7 @@ import {
   CreateMessageRequestSchema,
   ErrorCode,
   GetPromptRequestSchema,
+  GetPromptResult,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
   ListResourceTemplatesRequestSchema,
@@ -67,7 +68,9 @@ export const imageContent = async (
         rawData = Buffer.from(await response.arrayBuffer());
       } catch (error) {
         throw new Error(
-          `Failed to fetch image from URL (${input.url}): ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to fetch image from URL (${input.url}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         );
       }
     } else if ("path" in input) {
@@ -75,7 +78,9 @@ export const imageContent = async (
         rawData = await readFile(input.path);
       } catch (error) {
         throw new Error(
-          `Failed to read image from path (${input.path}): ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to read image from path (${input.path}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         );
       }
     } else if ("buffer" in input) {
@@ -90,7 +95,9 @@ export const imageContent = async (
 
     if (!mimeType || !mimeType.mime.startsWith("image/")) {
       console.warn(
-        `Warning: Content may not be a valid image. Detected MIME: ${mimeType?.mime || "unknown"}`,
+        `Warning: Content may not be a valid image. Detected MIME: ${
+          mimeType?.mime || "unknown"
+        }`,
       );
     }
 
@@ -129,7 +136,9 @@ export const audioContent = async (
         rawData = Buffer.from(await response.arrayBuffer());
       } catch (error) {
         throw new Error(
-          `Failed to fetch audio from URL (${input.url}): ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to fetch audio from URL (${input.url}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         );
       }
     } else if ("path" in input) {
@@ -137,7 +146,9 @@ export const audioContent = async (
         rawData = await readFile(input.path);
       } catch (error) {
         throw new Error(
-          `Failed to read audio from path (${input.path}): ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to read audio from path (${input.path}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         );
       }
     } else if ("buffer" in input) {
@@ -152,7 +163,9 @@ export const audioContent = async (
 
     if (!mimeType || !mimeType.mime.startsWith("audio/")) {
       console.warn(
-        `Warning: Content may not be a valid audio file. Detected MIME: ${mimeType?.mime || "unknown"}`,
+        `Warning: Content may not be a valid audio file. Detected MIME: ${
+          mimeType?.mime || "unknown"
+        }`,
       );
     }
 
@@ -357,7 +370,7 @@ type InputPrompt<
 > = {
   arguments?: InputPromptArgument[];
   description?: string;
-  load: (args: Args) => Promise<string>;
+  load: (args: Args) => Promise<PromptResult>;
   name: string;
 };
 
@@ -406,7 +419,7 @@ type Prompt<
   arguments?: PromptArgument[];
   complete?: (name: string, value: string) => Promise<Completion>;
   description?: string;
-  load: (args: Args) => Promise<string>;
+  load: (args: Args) => Promise<PromptResult>;
   name: string;
 };
 
@@ -427,6 +440,8 @@ type PromptArgumentsToObject<T extends { name: string; required?: boolean }[]> =
       ? string
       : string | undefined;
   };
+
+type PromptResult = Pick<GetPromptResult, "messages"> | string;
 
 type Resource = {
   complete?: (name: string, value: string) => Promise<Completion>;
@@ -807,7 +822,9 @@ export class FastMCPSession<
             );
           } else {
             console.error(
-              `[FastMCP error] received error listing roots.\n\n${e instanceof Error ? e.stack : JSON.stringify(e)}`,
+              `[FastMCP error] received error listing roots.\n\n${
+                e instanceof Error ? e.stack : JSON.stringify(e)
+              }`,
             );
           }
         }
@@ -1114,7 +1131,9 @@ export class FastMCPSession<
         if (arg.required && !(args && arg.name in args)) {
           throw new McpError(
             ErrorCode.InvalidRequest,
-            `Prompt '${request.params.name}' requires argument '${arg.name}': ${arg.description || "No description provided"}`,
+            `Prompt '${request.params.name}' requires argument '${arg.name}': ${
+              arg.description || "No description provided"
+            }`,
           );
         }
       }
@@ -1132,15 +1151,22 @@ export class FastMCPSession<
         );
       }
 
-      return {
-        description: prompt.description,
-        messages: [
-          {
-            content: { text: result, type: "text" },
-            role: "user",
-          },
-        ],
-      };
+      if (typeof result === "string") {
+        return {
+          description: prompt.description,
+          messages: [
+            {
+              content: { text: result, type: "text" },
+              role: "user",
+            },
+          ],
+        };
+      } else {
+        return {
+          description: prompt.description,
+          messages: result.messages,
+        };
+      }
     });
   }
 
@@ -1196,7 +1222,9 @@ export class FastMCPSession<
 
             throw new McpError(
               ErrorCode.MethodNotFound,
-              `Resource not found: '${request.params.uri}'. Available resources: ${resources.map((r) => r.uri).join(", ") || "none"}`,
+              `Resource not found: '${request.params.uri}'. Available resources: ${
+                resources.map((r) => r.uri).join(", ") || "none"
+              }`,
             );
           }
 
@@ -1827,13 +1855,26 @@ export class FastMCP<
   }
 }
 
-export type { Context };
-export type { Tool, ToolParameters };
-export type { Content, ContentResult, ImageContent, TextContent };
-export type { Progress, SerializableValue };
-export type { Resource, ResourceResult };
-export type { ResourceTemplate, ResourceTemplateArgument };
-export type { Prompt, PromptArgument };
-export type { InputPrompt, InputPromptArgument };
-export type { LoggingLevel, ServerOptions };
-export type { FastMCPEvents, FastMCPSessionEvents };
+export type {
+  Content,
+  ContentResult,
+  Context,
+  FastMCPEvents,
+  FastMCPSessionEvents,
+  ImageContent,
+  InputPrompt,
+  InputPromptArgument,
+  LoggingLevel,
+  Progress,
+  Prompt,
+  PromptArgument,
+  Resource,
+  ResourceResult,
+  ResourceTemplate,
+  ResourceTemplateArgument,
+  SerializableValue,
+  ServerOptions,
+  TextContent,
+  Tool,
+  ToolParameters,
+};
