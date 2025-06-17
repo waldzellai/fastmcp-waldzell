@@ -11,7 +11,9 @@ import {
   GetPromptResult,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
+  ListResourcesResult,
   ListResourceTemplatesRequestSchema,
+  ListResourceTemplatesResult,
   ListToolsRequestSchema,
   McpError,
   ReadResourceRequestSchema,
@@ -390,7 +392,7 @@ type InputResourceTemplate<
   description?: string;
   load: (
     args: ResourceTemplateArgumentsToObject<Arguments>,
-  ) => Promise<ResourceResult>;
+  ) => Promise<ResourceResult | ResourceResult[]>;
   mimeType?: string;
   name: string;
   uriTemplate: string;
@@ -456,9 +458,13 @@ type Resource = {
 type ResourceResult =
   | {
       blob: string;
+      mimeType?: string;
+      uri?: string;
     }
   | {
+      mimeType?: string;
       text: string;
+      uri?: string;
     };
 
 type ResourceTemplate<
@@ -469,7 +475,7 @@ type ResourceTemplate<
   description?: string;
   load: (
     args: ResourceTemplateArgumentsToObject<Arguments>,
-  ) => Promise<ResourceResult>;
+  ) => Promise<ResourceResult | ResourceResult[]>;
   mimeType?: string;
   name: string;
   uriTemplate: string;
@@ -1174,14 +1180,13 @@ export class FastMCPSession<
   private setupResourceHandlers(resources: Resource[]) {
     this.#server.setRequestHandler(ListResourcesRequestSchema, async () => {
       return {
-        resources: resources.map((resource) => {
-          return {
-            mimeType: resource.mimeType,
-            name: resource.name,
-            uri: resource.uri,
-          };
-        }),
-      };
+        resources: resources.map((resource) => ({
+          description: resource.description,
+          mimeType: resource.mimeType,
+          name: resource.name,
+          uri: resource.uri,
+        })),
+      } satisfies ListResourcesResult;
     });
 
     this.#server.setRequestHandler(
@@ -1209,15 +1214,15 @@ export class FastMCPSession<
 
               const result = await resourceTemplate.load(match);
 
+              const resources = Array.isArray(result) ? result : [result];
               return {
-                contents: [
-                  {
-                    mimeType: resourceTemplate.mimeType,
-                    name: resourceTemplate.name,
-                    uri: uri,
-                    ...result,
-                  },
-                ],
+                contents: resources.map((resource) => ({
+                  ...resource,
+                  description: resourceTemplate.description,
+                  mimeType: resource.mimeType ?? resourceTemplate.mimeType,
+                  name: resourceTemplate.name,
+                  uri: resource.uri ?? uri,
+                })),
               };
             }
 
@@ -1249,27 +1254,18 @@ export class FastMCPSession<
             );
           }
 
-          if (Array.isArray(maybeArrayResult)) {
-            return {
-              contents: maybeArrayResult.map((result) => ({
-                mimeType: resource.mimeType,
-                name: resource.name,
-                uri: resource.uri,
-                ...result,
-              })),
-            };
-          } else {
-            return {
-              contents: [
-                {
-                  mimeType: resource.mimeType,
-                  name: resource.name,
-                  uri: resource.uri,
-                  ...maybeArrayResult,
-                },
-              ],
-            };
-          }
+          const resourceResults = Array.isArray(maybeArrayResult)
+            ? maybeArrayResult
+            : [maybeArrayResult];
+
+          return {
+            contents: resourceResults.map((result) => ({
+              ...result,
+              mimeType: result.mimeType ?? resource.mimeType,
+              name: resource.name,
+              uri: result.uri ?? resource.uri,
+            })),
+          };
         }
 
         throw new UnexpectedStateError("Unknown resource request", {
@@ -1284,13 +1280,13 @@ export class FastMCPSession<
       ListResourceTemplatesRequestSchema,
       async () => {
         return {
-          resourceTemplates: resourceTemplates.map((resourceTemplate) => {
-            return {
-              name: resourceTemplate.name,
-              uriTemplate: resourceTemplate.uriTemplate,
-            };
-          }),
-        };
+          resourceTemplates: resourceTemplates.map((resourceTemplate) => ({
+            description: resourceTemplate.description,
+            mimeType: resourceTemplate.mimeType,
+            name: resourceTemplate.name,
+            uriTemplate: resourceTemplate.uriTemplate,
+          })),
+        } satisfies ListResourceTemplatesResult;
       },
     );
   }

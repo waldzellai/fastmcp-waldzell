@@ -1521,6 +1521,7 @@ test("lists resource templates", async () => {
       expect(await client.listResourceTemplates()).toEqual({
         resourceTemplates: [
           {
+            mimeType: "text/plain",
             name: "Application Logs",
             uriTemplate: "file:///logs/{name}.log",
           },
