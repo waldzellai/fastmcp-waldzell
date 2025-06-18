@@ -1,5 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { RequestOptions } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   CallToolRequestSchema,
@@ -492,6 +493,13 @@ type ResourceTemplateArgumentsToObject<T extends { name: string }[]> = {
   [K in T[number]["name"]]: string;
 };
 
+type SamplingResponse = {
+  content: AudioContent | ImageContent | TextContent;
+  model: string;
+  role: "assistant" | "user";
+  stopReason?: "endTurn" | "maxTokens" | "stopSequence" | string;
+};
+
 type ServerOptions<T extends FastMCPSessionAuth> = {
   authenticate?: Authenticate<T>;
   /**
@@ -635,13 +643,6 @@ const FastMCPSessionEventEmitterBase: {
 } = EventEmitter;
 
 type FastMCPSessionAuth = Record<string, unknown> | undefined;
-
-type SamplingResponse = {
-  content: AudioContent | ImageContent | TextContent;
-  model: string;
-  role: "assistant" | "user";
-  stopReason?: "endTurn" | "maxTokens" | "stopSequence" | string;
-};
 
 class FastMCPSessionEventEmitter extends FastMCPSessionEventEmitterBase {}
 
@@ -883,8 +884,9 @@ export class FastMCPSession<
 
   public async requestSampling(
     message: z.infer<typeof CreateMessageRequestSchema>["params"],
+    options?: RequestOptions,
   ): Promise<SamplingResponse> {
-    return this.#server.createMessage(message);
+    return this.#server.createMessage(message, options);
   }
 
   public waitForReady(): Promise<void> {
