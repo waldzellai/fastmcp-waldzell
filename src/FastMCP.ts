@@ -1766,7 +1766,14 @@ export class FastMCP<
           let auth: T | undefined;
 
           if (this.#authenticate) {
-            auth = await this.#authenticate(request);
+            try {
+              auth = await this.#authenticate(request);
+            } catch {
+              console.warn(
+                `[FastMCP PATCH] Initial auth failed. Proceeding...`,
+              );
+              auth = undefined;
+            }
           }
 
           return new FastMCPSession<T>({
@@ -1782,6 +1789,7 @@ export class FastMCP<
             version: this.#options.version,
           });
         },
+
         onClose: async (session) => {
           this.emit("disconnect", {
             session,

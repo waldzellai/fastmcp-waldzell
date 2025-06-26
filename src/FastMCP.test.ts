@@ -2202,7 +2202,7 @@ test("supports streaming output from tools", async () => {
   });
 });
 
-test("blocks unauthorized requests", async () => {
+test("allows connection even if initial auth fails", async () => {
   const port = await getRandomPort();
 
   const server = new FastMCP<{ id: number }>({
@@ -2237,9 +2237,10 @@ test("blocks unauthorized requests", async () => {
     new URL(`http://localhost:${port}/sse`),
   );
 
-  expect(async () => {
-    await client.connect(transport);
-  }).rejects.toThrow("SSE error: Non-200 status code (401)");
+  await expect(client.connect(transport)).resolves.toBeUndefined();
+
+  await client.close();
+  await server.stop();
 });
 
 // We now use a direct approach for testing HTTP Stream functionality
