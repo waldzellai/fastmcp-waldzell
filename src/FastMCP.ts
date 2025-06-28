@@ -24,6 +24,7 @@ import {
   ServerCapabilities,
   SetLevelRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { EventStore } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { StandardSchemaV1 } from "@standard-schema/spec";
 import { EventEmitter } from "events";
 import { readFile } from "fs/promises";
@@ -1822,7 +1823,11 @@ export class FastMCP<
    */
   public async start(
     options?: Partial<{
-      httpStream: { endpoint?: `/${string}`; port: number };
+      httpStream: {
+        endpoint?: `/${string}`;
+        port: number;
+        eventStore?: EventStore;
+      };
       transportType: "httpStream" | "stdio";
     }>,
   ) {
@@ -1983,6 +1988,7 @@ export class FastMCP<
 
         port: httpConfig.port,
         streamEndpoint: httpConfig.endpoint,
+        eventStore: httpConfig.eventStore,
       });
 
       console.info(
