@@ -1823,7 +1823,11 @@ export class FastMCP<
    */
   public async start(
     options?: Partial<{
-      httpStream: { endpoint?: `/${string}`; port: number, eventStore?: EventStore };
+      httpStream: {
+        endpoint?: `/${string}`;
+        port: number;
+        eventStore?: EventStore;
+      };
       transportType: "httpStream" | "stdio";
     }>,
   ) {
