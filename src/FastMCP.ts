@@ -2040,7 +2040,11 @@ export class FastMCP<
     }>,
   ):
     | {
-        httpStream: { endpoint: `/${string}`; port: number };
+        httpStream: {
+          endpoint: `/${string}`;
+          eventStore?: EventStore;
+          port: number;
+        };
         transportType: "httpStream";
       }
     | { transportType: "stdio" } {
