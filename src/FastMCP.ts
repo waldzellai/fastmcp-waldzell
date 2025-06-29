@@ -1,5 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { EventStore } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { RequestOptions } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
@@ -24,7 +25,6 @@ import {
   ServerCapabilities,
   SetLevelRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { EventStore } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { StandardSchemaV1 } from "@standard-schema/spec";
 import { EventEmitter } from "events";
 import { readFile } from "fs/promises";
@@ -1847,8 +1847,8 @@ export class FastMCP<
     options?: Partial<{
       httpStream: {
         endpoint?: `/${string}`;
-        port: number;
         eventStore?: EventStore;
+        port: number;
       };
       transportType: "httpStream" | "stdio";
     }>,
@@ -1901,6 +1901,7 @@ export class FastMCP<
             version: this.#options.version,
           });
         },
+        eventStore: httpConfig.eventStore,
         onClose: async (session) => {
           this.emit("disconnect", {
             session: session as FastMCPSession<FastMCPSessionAuth>,
@@ -1915,6 +1916,7 @@ export class FastMCP<
             session: session as FastMCPSession<FastMCPSessionAuth>,
           });
         },
+
         onUnhandledRequest: async (req, res) => {
           const healthConfig = this.#options.health ?? {};
 
@@ -2007,10 +2009,8 @@ export class FastMCP<
           // If the request was not handled above, return 404
           res.writeHead(404).end();
         },
-
         port: httpConfig.port,
         streamEndpoint: httpConfig.endpoint,
-        eventStore: httpConfig.eventStore,
       });
 
       console.info(
